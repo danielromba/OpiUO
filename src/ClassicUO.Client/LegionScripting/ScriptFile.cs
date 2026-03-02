@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -9,8 +10,9 @@ using ClassicUO.Game;
 using ClassicUO.Utility.Logging;
 using IronPython.Hosting;
 using Microsoft.Scripting.Hosting;
-using Microsoft.CodeAnalysis.CSharp.Scripting;
-using Microsoft.CodeAnalysis.Scripting;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
 
 namespace ClassicUO.LegionScripting;
 
@@ -28,8 +30,8 @@ public partial class ScriptFile : IDisposable
     public ScriptScope PythonScope;
     public LegionAPI ScopedApi;
     public ScriptType Type;
-    public Script<object> CSharpCompiledScript;
-    public int UserCodeStartLine { get; private set; }
+    public Assembly CSharpCompiledAssembly;
+    public Type CSharpScriptType;
 
     public bool IsPlaying => ScriptThread != null;
 
@@ -98,7 +100,8 @@ public partial class ScriptFile : IDisposable
             // Check if contents changed for C# scripts and invalidate cache
             if (Type == ScriptType.CSharp && FileContentsJoined != newContents)
             {
-                CSharpCompiledScript = null;
+                CSharpCompiledAssembly = null;
+                CSharpScriptType = null;
             }
 
             FileContentsJoined = newContents;
@@ -153,92 +156,139 @@ public partial class ScriptFile : IDisposable
             PythonEngine = null;
     }
 
-    private static (string[], string) ExciseUsingDirectives(string code)
-    {
-        Regex usingDirectiveRx = MatchUsingDirectives();
-        MatchCollection matches = usingDirectiveRx.Matches(code);
-
-        if (matches.Count == 0)
-            return ([], code);
-
-        var usings = new List<string>();
-
-        // Process matches in reverse order to keep indices valid
-        for (int i = matches.Count - 1; i >= 0; i--)
-        {
-            Match match = matches[i];
-            usings.Add(match.Value);
-            code = code.Remove(match.Index, match.Length);
-        }
-
-        // Reverse the list since we collected in reverse order
-        usings.Reverse();
-
-        return (usings.ToArray(), code.Trim());
-    }
-
-    private static (string code, int userCodeStartLine1Based) GenerateUserCodeWrapper(string userCode)
-    {
-        var (usingDirectives, userCodeWithoutUsings) = ExciseUsingDirectives(userCode);
-
-        string proxyClassName = $"LegionAPIProxy{Guid.NewGuid().ToString().Replace("-", "")}";
-        string proxyCode = $$"""
-                             global using static {{proxyClassName}};
-
-                             {{string.Join('\n', usingDirectives)}}
-
-                             public static class {{proxyClassName}}
-                             {
-                                 public static LegionAPI API { get; set; }
-                             }
-
-                             {{proxyClassName}}.API = GlobalApiInstance;
-
-                             """;
-        int proxyCodeLineCount = proxyCode.Split(["\n", "\r", "\r\n"], StringSplitOptions.None).Length;
-
-        // The user code starts after the proxy code MINUS the number of using directives (as they were originally provided by the user)
-        int userCodeStartLine1Based = proxyCodeLineCount - usingDirectives.Length;
-        string finalCode = proxyCode + userCodeWithoutUsings;
-
-        return (finalCode, userCodeStartLine1Based);
-    }
-
-
     public void SetupCSharpScript()
     {
         // Reuse cached compilation if available
-        if (CSharpCompiledScript != null && !LegionScripting.LScriptSettings.DisableModuleCache)
+        if (CSharpCompiledAssembly != null && CSharpScriptType != null && !LegionScripting.LScriptSettings.DisableModuleCache)
             return;
 
-        // Configure script options with assemblies and imports
-        ScriptOptions options = ScriptOptions.Default
-            .WithReferences(
-                typeof(object).Assembly,                             // System
-                typeof(Enumerable).Assembly,                         // System.Linq
-                typeof(List<>).Assembly,                             // System.Collections.Generic
-                typeof(LegionAPI).Assembly,                          // ClassicUO.LegionScripting
-                typeof(Microsoft.Xna.Framework.Vector3).Assembly     // Microsoft.Xna.Framework
-            )
-            .WithImports(
-                "System",
-                "System.Linq",
-                "System.Collections.Generic",
-                "System.Threading.Tasks",
-                "ClassicUO.LegionScripting",
-                "ClassicUO.LegionScripting.ApiClasses"
-            )
-            .WithEmitDebugInformation(true)
-            .WithFileEncoding(Encoding.UTF8)
-            .WithFilePath(FullPath);
+        // Collect all files to compile (main file + includes)
+        var filesToCompile = new Dictionary<string, string>(); // fullPath -> content
+        var processedFiles = new HashSet<string>(); // To prevent circular includes
 
-        // Compile the script
-        (string code, int userCodeStartLine) = GenerateUserCodeWrapper(FileContentsJoined);
-        CSharpCompiledScript = CSharpScript.Create<object>(code, options, typeof(ScriptGlobals));
-        UserCodeStartLine = userCodeStartLine;
+        CollectFilesRecursively(FullPath, FileContentsJoined, filesToCompile, processedFiles);
 
-        // Pre-compile to catch compilation errors early
-        CSharpCompiledScript.Compile();
+        // Create syntax trees for all files
+        var syntaxTrees = new List<SyntaxTree>();
+        foreach (KeyValuePair<string, string> kvp in filesToCompile)
+        {
+            string filePath = kvp.Key;
+            string content = kvp.Value;
+
+            SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(
+                content,
+                CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest),
+                path: filePath,
+                encoding: Encoding.UTF8
+            );
+
+            syntaxTrees.Add(syntaxTree);
+        }
+
+        // Gather required assembly references
+        var references = new List<MetadataReference>
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),                      // System.Runtime
+            MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),                     // System.Console
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),                  // System.Linq
+            MetadataReference.CreateFromFile(typeof(List<>).Assembly.Location),                      // System.Collections
+            MetadataReference.CreateFromFile(typeof(LegionAPI).Assembly.Location),                   // ClassicUO.LegionScripting
+            MetadataReference.CreateFromFile(typeof(Microsoft.Xna.Framework.Vector3).Assembly.Location), // Microsoft.Xna.Framework
+            MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
+            MetadataReference.CreateFromFile(Assembly.Load("System.Collections").Location),
+            MetadataReference.CreateFromFile(Assembly.Load("System.Collections.Concurrent").Location),
+            MetadataReference.CreateFromFile(Assembly.Load("System.Text.RegularExpressions").Location),
+            MetadataReference.CreateFromFile(Assembly.Load("System.Text.Json").Location),
+            MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location)
+        };
+
+        // Create compilation
+        string assemblyName = $"LegionScript_{System.IO.Path.GetFileNameWithoutExtension(FileName)}_{Guid.NewGuid():N}";
+        var compilation = CSharpCompilation.Create(
+            assemblyName,
+            syntaxTrees: syntaxTrees,
+            references: references,
+            options: new CSharpCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                optimizationLevel: OptimizationLevel.Debug,
+                allowUnsafe: false
+            )
+        );
+
+        // Compile to memory
+        using var ms = new MemoryStream();
+        EmitResult result = compilation.Emit(ms);
+
+        if (!result.Success)
+        {
+            // Compilation failed - throw exception with diagnostics
+            IEnumerable<Diagnostic> failures = result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error);
+            throw new CSharpCompilationException(failures);
+        }
+
+        // Load the compiled assembly
+        ms.Seek(0, SeekOrigin.Begin);
+        CSharpCompiledAssembly = Assembly.Load(ms.ToArray());
+
+        // Find the script class that implements ILegionScript
+        CSharpScriptType = CSharpCompiledAssembly.GetTypes()
+            .FirstOrDefault(t => typeof(ILegionScript).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+        if (CSharpScriptType == null)
+        {
+            throw new InvalidOperationException(
+                $"Script '{FileName}' does not contain a class that implements ILegionScript. " +
+                "Please ensure your script has a class in the 'ClassicUO.LegionScripting.Scripts' namespace that implements ILegionScript."
+            );
+        }
+    }
+
+    private void CollectFilesRecursively(string currentFilePath, string content, Dictionary<string, string> filesToCompile, HashSet<string> processedFiles)
+    {
+        // Normalize path to prevent duplicate includes with different path formats
+        string normalizedPath = System.IO.Path.GetFullPath(currentFilePath);
+
+        // Check if already processed (prevents circular includes)
+        if (processedFiles.Contains(normalizedPath))
+            return;
+
+        processedFiles.Add(normalizedPath);
+
+        // Add current file to compilation list
+        filesToCompile[normalizedPath] = content;
+
+        // Parse include directives: //#include "filename.cs"
+        string includePattern = @"^\s*//#include\s+""([^""]+)""\s*$";
+        MatchCollection matches = Regex.Matches(content, includePattern, RegexOptions.Multiline);
+
+        foreach (Match match in matches)
+        {
+            string includedFileName = match.Groups[1].Value;
+
+            // Resolve path relative to current file's directory
+            string currentDirectory = System.IO.Path.GetDirectoryName(currentFilePath);
+            string includedFilePath = System.IO.Path.Combine(currentDirectory, includedFileName);
+
+            try
+            {
+                // Check if file exists
+                if (!File.Exists(includedFilePath))
+                {
+                    throw new FileNotFoundException($"Included file not found: {includedFileName}");
+                }
+
+                // Read included file
+                string includedContent = File.ReadAllText(includedFilePath, Encoding.UTF8);
+
+                // Recursively process included file (supports nested includes)
+                CollectFilesRecursively(includedFilePath, includedContent, filesToCompile, processedFiles);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error including file '{includedFileName}' from '{currentFilePath}': {ex.Message}");
+                throw new InvalidOperationException($"Failed to include file '{includedFileName}' in '{System.IO.Path.GetFileName(currentFilePath)}': {ex.Message}", ex);
+            }
+        }
     }
 
     public void SetupCSharpGlobals()
@@ -255,7 +305,10 @@ public partial class ScriptFile : IDisposable
 
         // Clear compilation cache if module caching disabled
         if (LegionScripting.LScriptSettings.DisableModuleCache)
-            CSharpCompiledScript = null;
+        {
+            CSharpCompiledAssembly = null;
+            CSharpScriptType = null;
+        }
     }
 
     public void Dispose()
@@ -271,7 +324,4 @@ public partial class ScriptFile : IDisposable
         GC.SuppressFinalize(this);
         _disposed = true;
     }
-
-    [GeneratedRegex(@"^using\s+\w[\w\d]*(?:\.\w[\w\d]*)*;$", RegexOptions.Multiline | RegexOptions.Compiled)]
-    private static partial Regex MatchUsingDirectives();
 }

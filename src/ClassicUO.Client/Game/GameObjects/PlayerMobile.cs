@@ -20,6 +20,10 @@ namespace ClassicUO.Game.GameObjects
     {
         private readonly Dictionary<BuffIconType, BuffIcon> _buffIcons = new Dictionary<BuffIconType, BuffIcon>();
 
+        // Opiland heartbeat tracking
+        private DateTime _lastOpilandBroadcast = DateTime.MinValue;
+        private const double OPILAND_HEARTBEAT_INTERVAL_SECONDS = 8.0;
+
         public PlayerMobile(World world, uint serial) : base(world, serial)
         {
             Skills = new Skill[Client.Game.UO.FileManager.Skills.SkillsCount];
@@ -42,7 +46,7 @@ namespace ClassicUO.Game.GameObjects
             };
 
 
-            if(ProfileManager.CurrentProfile != null && ProfileManager.CurrentProfile.EnableSpellIndicators)
+            if (ProfileManager.CurrentProfile != null && ProfileManager.CurrentProfile.EnableSpellIndicators)
                 UIManager.Add(new CastTimerProgressBar(world));
 
             IsPlayer = true;
@@ -367,7 +371,25 @@ namespace ClassicUO.Game.GameObjects
             TryOpenDoors();
             TryOpenCorpses();
 
+            HandleOpilandMessage();
+
             EventSink.InvokeOnPositionChanged(this, new PositionChangedArgs(new Microsoft.Xna.Framework.Vector3(X, Y, Z)));
+        }
+
+        private void HandleOpilandMessage()
+        {
+            if (OpilandClientManager.Instance.IsConnected || OpilandServerManager.Instance.IsRunning)
+            {
+                var positionMessage = OpilandPlayerTracker.BuildPositionMessage(this);
+                OpilandClientManager.Instance.SendMessageAsync(positionMessage);
+
+                if (OpilandServerManager.Instance.IsRunning)
+                {
+                    OpilandServerManager.Instance.BroadcastMessageAsync(positionMessage);
+                }
+
+                _lastOpilandBroadcast = DateTime.UtcNow;
+            }
         }
 
         public void TryOpenCorpses()
@@ -469,8 +491,8 @@ namespace ClassicUO.Game.GameObjects
                     bank.Items = null;
                 }
 
-                UIManager.ForEach<ContainerGump>(g=> g.Dispose(), bank.Serial);
-                UIManager.ForEach<GridContainer>(g=> g.Dispose(), bank.Serial);
+                UIManager.ForEach<ContainerGump>(g => g.Dispose(), bank.Serial);
+                UIManager.ForEach<GridContainer>(g => g.Dispose(), bank.Serial);
 
                 bank.Opened = false;
             }
@@ -594,30 +616,15 @@ namespace ClassicUO.Game.GameObjects
         }
 
 
-        //public override void Update()
-        //{
-        //    base.Update();
+        public override void Update()
+        {
+            base.Update();
 
-        //    //const int TIME_TURN_TO_LASTTARGET = 2000;
-
-        //    //if (TargetManager.LastAttack != 0 &&
-        //    //    InWarMode &&
-        //    //    Walker.LastStepRequestTime + TIME_TURN_TO_LASTTARGET < Time.Ticks)
-        //    //{
-        //    //    Mobile enemy = World.Mobiles.Get(TargetManager.LastAttack);
-
-        //    //    if (enemy != null && enemy.Distance <= 1)
-        //    //    {
-        //    //        Direction pdir = DirectionHelper.GetDirectionAB(World.Player.X,
-        //    //                                                        World.Player.Y,
-        //    //                                                        enemy.X,
-        //    //                                                        enemy.Y);
-
-        //    //        if (Direction != pdir)
-        //    //            Walk(pdir, false);
-        //    //    }
-        //    //}
-        //}
+            // Opiland heartbeat: send position every 8 seconds even if not moving
+            bool heartbeatNeeded = (DateTime.UtcNow - _lastOpilandBroadcast).TotalSeconds >= OPILAND_HEARTBEAT_INTERVAL_SECONDS;
+            if (heartbeatNeeded)
+                HandleOpilandMessage();
+        }
 
         // ############# DO NOT DELETE IT! #############
         //protected override bool NoIterateAnimIndex()
@@ -788,6 +795,7 @@ namespace ClassicUO.Game.GameObjects
                     }
                 );
 
+                //HandleOpilandMessage();
                 AsyncNetClient.Socket.Send_WalkRequest(direction, Walker.WalkSequence, run, Walker.FastWalkStack.GetValue());
 
                 if (Walker.WalkSequence == 0xFF)
@@ -965,9 +973,8 @@ namespace ClassicUO.Game.GameObjects
                 }
             );
 
-
+            //HandleOpilandMessage();
             AsyncNetClient.Socket.Send_WalkRequest(direction, Walker.WalkSequence, run, Walker.FastWalkStack.GetValue());
-
 
             if (Walker.WalkSequence == 0xFF)
             {
@@ -1013,7 +1020,7 @@ namespace ClassicUO.Game.GameObjects
 
             for (LinkedObject i = Items; i != null; i = i.Next)
             {
-                var it = (Item) i;
+                var it = (Item)i;
 
                 if (!it.IsDestroyed)
                 {

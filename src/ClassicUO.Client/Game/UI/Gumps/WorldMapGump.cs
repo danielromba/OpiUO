@@ -88,6 +88,9 @@ public class WorldMapGump : ResizableGump
     private bool _showPartyMembers = true;
     private bool _showPlayerBar = true;
     private bool _showPlayerName = true;
+    private bool _showOpilandPlayers = true;
+    private bool _showOpilandPlayerNames = true;
+    private bool _showOpilandPlayerBars = true;
     private int _zoomIndex = 4;
     private bool _showGridIfZoomed = true;
     private bool _allowPositionalTarget = false;
@@ -225,6 +228,9 @@ public class WorldMapGump : ResizableGump
 
         _showGridIfZoomed = ProfileManager.CurrentProfile.WorldMapShowGridIfZoomed;
         _allowPositionalTarget = ProfileManager.CurrentProfile.WorldMapAllowPositionalTarget;
+        _showOpilandPlayers = ProfileManager.CurrentProfile.WorldMapShowOpilandPlayers;
+        _showOpilandPlayerNames = ProfileManager.CurrentProfile.WorldMapShowOpilandPlayerNames;
+        _showOpilandPlayerBars = ProfileManager.CurrentProfile.WorldMapShowOpilandPlayerBars;
         TopMost = ProfileManager.CurrentProfile.WorldMapTopMost;
         FreeView = ProfileManager.CurrentProfile.WorldMapFreeView;
     }
@@ -267,6 +273,9 @@ public class WorldMapGump : ResizableGump
         ProfileManager.CurrentProfile.WorldMapShowGridIfZoomed = _showGridIfZoomed;
         ProfileManager.CurrentProfile.WorldMapPosition = new Point(X, Y);
         ProfileManager.CurrentProfile.WorldMapAllowPositionalTarget = _allowPositionalTarget;
+        ProfileManager.CurrentProfile.WorldMapShowOpilandPlayers = _showOpilandPlayers;
+        ProfileManager.CurrentProfile.WorldMapShowOpilandPlayerNames = _showOpilandPlayerNames;
+        ProfileManager.CurrentProfile.WorldMapShowOpilandPlayerBars = _showOpilandPlayerBars;
     }
 
     private bool ParseBool(string boolStr) => bool.TryParse(boolStr, out bool value) && value;
@@ -375,6 +384,18 @@ public class WorldMapGump : ResizableGump
 
         _options["allow_positional_target"] = new ContextMenuItemEntry(
             ResGumps.AllowPositionalTargeting, () => { _allowPositionalTarget = !_allowPositionalTarget; SaveSettings(); }, true, _allowPositionalTarget
+        );
+
+        _options["show_opiland_players"] = new ContextMenuItemEntry(
+            "Show Opiland Players", () => { _showOpilandPlayers = !_showOpilandPlayers; SaveSettings(); }, true, _showOpilandPlayers
+        );
+
+        _options["show_opiland_names"] = new ContextMenuItemEntry(
+            "Show Opiland Names", () => { _showOpilandPlayerNames = !_showOpilandPlayerNames; SaveSettings(); }, true, _showOpilandPlayerNames
+        );
+
+        _options["show_opiland_bars"] = new ContextMenuItemEntry(
+            "Show Opiland Health Bars", () => { _showOpilandPlayerBars = !_showOpilandPlayerBars; SaveSettings(); }, true, _showOpilandPlayerBars
         );
 
         _options["markers_manager"] = new ContextMenuItemEntry(ResGumps.MarkersManager,
@@ -609,6 +630,15 @@ public class WorldMapGump : ResizableGump
         ContextMenu.Add(_options["show_corpse"]);
         ContextMenu.Add(_options["show_mobiles"]);
         ContextMenu.Add(_options["show_multis"]);
+        ContextMenu.Add("", null);
+
+        var opilandEntry = new ContextMenuItemEntry("Opiland Network");
+        opilandEntry.Add(_options["show_opiland_players"]);
+        opilandEntry.Add(_options["show_opiland_names"]);
+        opilandEntry.Add(_options["show_opiland_bars"]);
+        ContextMenu.Add(opilandEntry);
+
+        ContextMenu.Add("", null);
         ContextMenu.Add(_options["show_coordinates"]);
         ContextMenu.Add(_options["show_sextant_coordinates"]);
         ContextMenu.Add(_options["show_mouse_coordinates"]);
@@ -2222,6 +2252,12 @@ public class WorldMapGump : ResizableGump
                     continue;
                 }
 
+                // Skip if this mobile is already tracked by Opiland
+                if (_showOpilandPlayers && OpilandPlayerTracker.Instance.IsPlayerTracked(mob.Serial))
+                {
+                    continue;
+                }
+
                 if (mob.NotorietyFlag != NotorietyFlag.Ally)
                 {
                     DrawMobile
@@ -2314,6 +2350,12 @@ public class WorldMapGump : ResizableGump
 
                 if (partyMember != null && SerialHelper.IsValid(partyMember.Serial))
                 {
+                    // Skip if this mobile is already tracked by Opiland
+                    if (_showOpilandPlayers && OpilandPlayerTracker.Instance.IsPlayerTracked(partyMember.Serial))
+                    {
+                        continue;
+                    }
+
                     Mobile mob = World.Mobiles.Get(partyMember.Serial);
 
                     if (mob != null && mob.Distance <= World.ClientViewRange)
@@ -2399,6 +2441,24 @@ public class WorldMapGump : ResizableGump
 
         }
 
+        // Draw Opiland tracked players
+        if (_showOpilandPlayers)
+        {
+            foreach (var opilandPlayer in OpilandPlayerTracker.Instance.GetPlayersOnMap(_map.Index))
+            {
+                DrawOpilandPlayer
+                (
+                    batcher,
+                    opilandPlayer,
+                    gX,
+                    gY,
+                    halfWidth,
+                    halfHeight,
+                    Zoom
+                );
+            }
+        }
+
         if (_world.Player.Pathfinder.AutoWalking && World.Player.Pathfinder.PathSize > 0)
         {
             Point end = RotatePoint(World.Player.Pathfinder.EndPoint.X - _center.X, World.Player.Pathfinder.EndPoint.Y - _center.Y, Zoom, 1, _flipMap ? 45f : 0f);
@@ -2417,20 +2477,54 @@ public class WorldMapGump : ResizableGump
                 );
         }
 
-        DrawMobile
-        (
-            batcher,
-            World.Player,
-            gX,
-            gY,
-            halfWidth,
-            halfHeight,
-            Zoom,
-            Color.White,
-            _showPlayerName,
-            false,
-            _showPlayerBar
-        );
+        // Draw player: as Opiland if server is running, otherwise normal
+        if (_showOpilandPlayers && (OpilandServerManager.Instance.IsRunning || OpilandClientManager.Instance.IsConnected))
+        {
+            // Create an Opiland player representation of ourselves
+            var selfAsOpilandPlayer = new OpilandPlayerTracker.OpilandPlayer
+            {
+                Serial = World.Player.Serial,
+                Name = string.IsNullOrWhiteSpace(ProfileManager.CurrentProfile?.OpilandClientCustomName)
+                    ? World.Player.Name
+                    : ProfileManager.CurrentProfile.OpilandClientCustomName,
+                X = World.Player.X,
+                Y = World.Player.Y,
+                Z = World.Player.Z,
+                MapIndex = _map.Index,
+                Hue = ProfileManager.CurrentProfile?.OpilandClientCustomNameHue ?? 0x005A,
+                LastUpdate = DateTime.UtcNow
+            };
+
+            // Draw in Opiland style (cyan dot + colored name background)
+            DrawOpilandPlayer
+            (
+                batcher,
+                selfAsOpilandPlayer,
+                gX,
+                gY,
+                halfWidth,
+                halfHeight,
+                Zoom
+            );
+        }
+        else
+        {
+            // Draw normally (white dot)
+            DrawMobile
+            (
+                batcher,
+                World.Player,
+                gX,
+                gY,
+                halfWidth,
+                halfHeight,
+                Zoom,
+                Color.White,
+                _showPlayerName,
+                false,
+                _showPlayerBar
+            );
+        }
 
 
 
@@ -3132,6 +3226,158 @@ public class WorldMapGump : ResizableGump
         {
             rot.Y += DOT_SIZE + 1;
             DrawHpBar(batcher, rot.X, rot.Y, entity.HP);
+        }
+    }
+
+    private void DrawOpilandPlayer
+    (
+        UltimaBatcher2D batcher,
+        OpilandPlayerTracker.OpilandPlayer player,
+        int x,
+        int y,
+        int width,
+        int height,
+        float zoom
+    )
+    {
+        Vector3 hueVector = ShaderHueTranslator.GetHueVector(0);
+
+        // Use cyan/turquoise color for Opiland players to distinguish them
+        ushort uohue = (ushort)player.Hue; // Turquoise hue
+        Color color = Color.Cyan;
+
+        int sx = player.X - _center.X;
+        int sy = player.Y - _center.Y;
+
+        Point rot = RotatePoint
+        (
+            sx,
+            sy,
+            zoom,
+            1,
+            _flipMap ? 45f : 0f
+        );
+
+        AdjustPosition
+        (
+            rot.X,
+            rot.Y,
+            width - 4,
+            height - 4,
+            out rot.X,
+            out rot.Y
+        );
+
+        rot.X += x + width;
+        rot.Y += y + height;
+
+        const int DOT_SIZE = 4;
+        const int DOT_SIZE_HALF = DOT_SIZE >> 1;
+
+        if (rot.X < x)
+        {
+            rot.X = x;
+        }
+
+        if (rot.X > x + Width - 8 - DOT_SIZE)
+        {
+            rot.X = x + Width - 8 - DOT_SIZE;
+        }
+
+        if (rot.Y < y)
+        {
+            rot.Y = y;
+        }
+
+        if (rot.Y > y + Height - 8 - DOT_SIZE)
+        {
+            rot.Y = y + Height - 8 - DOT_SIZE;
+        }
+
+        batcher.Draw
+        (
+            SolidColorTextureCache.GetTexture(color),
+            new Rectangle
+            (
+                rot.X - DOT_SIZE_HALF,
+                rot.Y - DOT_SIZE_HALF,
+                DOT_SIZE,
+                DOT_SIZE
+            ),
+            hueVector
+        );
+
+        if (_showOpilandPlayerNames && !string.IsNullOrEmpty(player.Name))
+        {
+            string name = player.Name;
+            Vector2 size = Fonts.Regular.MeasureString(name);
+
+            if (rot.X + size.X / 2 > x + Width - 8)
+            {
+                rot.X = x + Width - 8 - (int)(size.X / 2);
+            }
+            else if (rot.X - size.X / 2 < x)
+            {
+                rot.X = x + (int)(size.X / 2);
+            }
+
+            if (rot.Y + size.Y > y + Height)
+            {
+                rot.Y = y + Height - (int)size.Y;
+            }
+            else if (rot.Y - size.Y < y)
+            {
+                rot.Y = y + (int)size.Y;
+            }
+
+            int xx = (int)(rot.X - size.X / 2);
+            int yy = (int)(rot.Y - size.Y);
+
+            // Draw colored background using player's hue
+            hueVector = new Vector3(0f, 1f, 0.8f);
+
+            batcher.Draw
+            (
+                SolidColorTextureCache.GetTexture(Color.Black),
+                new Rectangle
+                (
+                    xx - 2,
+                    yy - 2,
+                    (int)(size.X + 4),
+                    (int)(size.Y + 4)
+                ),
+                hueVector
+            );
+
+            hueVector.X = 0;
+            hueVector.Y = 1;
+
+            batcher.DrawString
+            (
+                Fonts.Regular,
+                name,
+                xx + 1,
+                yy + 1,
+                hueVector
+            );
+
+            hueVector = new Vector3(uohue, 1f, 1f);
+
+            batcher.DrawString
+            (
+                Fonts.Regular,
+                name,
+                xx,
+                yy,
+                hueVector
+            );
+        }
+
+        if (_showOpilandPlayerBars)
+        {
+            rot.Y += DOT_SIZE + 1;
+            // Opiland players don't have HP data, so show full bar
+            DrawHpBar(batcher, rot.X, rot.Y, 100);
         }
     }
 

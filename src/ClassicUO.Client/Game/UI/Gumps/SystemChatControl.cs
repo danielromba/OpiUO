@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: BSD-2-Clause
+// SPDX-License-Identifier: BSD-2-Clause
 
 using System;
 using System.Collections.Generic;
@@ -189,7 +189,7 @@ namespace ClassicUO.Game.UI.Gumps
                             break;
 
                         case ChatMode.ClientCommand:
-                            AppendChatModePrefix(ResGumps.Command, 1161, TextBoxControl.Text);
+                            AppendChatModePrefix(ResGumps.Command, ProfileManager.CurrentProfile.SpeechHue, TextBoxControl.Text);
 
                             break;
 

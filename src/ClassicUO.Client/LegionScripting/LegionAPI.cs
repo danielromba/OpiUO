@@ -367,9 +367,83 @@ namespace ClassicUO.LegionScripting
             Global
         }
 
+        public enum WalkStyle
+        {
+            Auto = 0,
+            WalkOnly,
+            RunOnly
+        }
+
         #endregion
 
         #region Methods
+
+        public uint GetLastAttackSerial() =>
+            MainThreadQueue.InvokeOnMainThread(() =>
+            {
+                return World.TargetManager.LastAttack;
+            });
+
+        /// <summary>
+        /// Check if there is a direct, unobstructed path to a mobile.
+        /// This checks if any coordinate along the line of sight is blocked by impassable terrain (water) or statics (trees, walls, etc.).
+        /// Example:
+        /// ```py
+        /// mob = API.FindMobile(0x12345678)
+        /// if mob and API.HasDirectPathTo(mob):
+        ///   API.SysMsg("Clear line of sight to target!")
+        ///   API.CastSpell("Lightning")
+        ///   API.WaitForTarget()
+        ///   API.Target(mob.Serial)
+        /// else:
+        ///   API.SysMsg("Path is blocked!")
+        /// ```
+        /// </summary>
+        /// <param name="obj">The mobile to check path to</param>
+        /// <returns>True if there is a clear, walkable path; false if blocked by terrain or statics</returns>
+        public bool HasDirectPathTo(ApiMobile obj) =>
+            MainThreadQueue.InvokeOnMainThread(() =>
+            {
+                if (obj == null)
+                    return false;
+
+                Mobile mob = World.Mobiles.Get(obj.Serial);
+                if (mob == null)
+                    return false;
+
+                List<LoSPoint3D> coords = LineOfSightHelper.CoordsToTarget(World.Player, mob);
+                if (coords == null || coords.Count == 0)
+                    return false;
+
+                // Check each coordinate along the line of sight
+                foreach (LoSPoint3D coord in coords)
+                {
+                    // Check if this coordinate is walkable/passable
+                    if (!WalkableManager.Instance.CheckTileWalkability(coord.X, coord.Y, (sbyte)coord.Z))
+                    {
+                        return false; // Path is blocked by impassable terrain or static
+                    }
+                }
+
+                return true; // All coordinates in the path are walkable
+            });
+
+        public ApiPoint2D GetEntityScreenPosition(uint serial) =>
+            MainThreadQueue.InvokeOnMainThread(() =>
+            {
+                Entity entity = World.Get(serial);
+                if (entity == null)
+                    return new ApiPoint2D();
+
+                Point realPos = entity.RealScreenPosition;
+                var result = new ApiPoint2D()
+                {
+                    X = realPos.X,
+                    Y = realPos.Y
+                };
+
+                return result;
+            });
 
         /// <summary>
         /// Register or unregister a Python callback for a hotkey.
@@ -708,7 +782,7 @@ namespace ClassicUO.LegionScripting
         public void EquipItem(uint serial) => OnMain
         (() =>
             {
-                if(ProfileManager.CurrentProfile.QueueManualItemMoves && World.Items.Get(serial) is Item i)
+                if (ProfileManager.CurrentProfile.QueueManualItemMoves && World.Items.Get(serial) is Item i)
                     ObjectActionQueue.Instance.Enqueue(ObjectActionQueueItem.EquipItem(serial, (Layer)i.ItemData.Layer), ActionPriority.EquipItem);
                 else
                 {
@@ -877,7 +951,7 @@ namespace ClassicUO.LegionScripting
         /// </param>
         public void PickUpToCursor(uint serial = 0, int amt = 0) => OnMain(() =>
         {
-            if(serial == 0)
+            if (serial == 0)
             {
                 if (Client.Game.UO.GameCursor.ItemHold.Enabled)
                     serial = Client.Game.UO.GameCursor.ItemHold.Serial;
@@ -886,7 +960,7 @@ namespace ClassicUO.LegionScripting
             GameActions.PickUp(World, serial, 0, 0, amt, skipQueue: true);
         });
 
-         /// <summary>
+        /// <summary>
         /// Drops an item currently held by the mouse cursor into a container or on the ground at a specified position.
         /// </summary>
         /// <param name="serial">The unique serial identifier of the item to drop.</param>
@@ -908,7 +982,7 @@ namespace ClassicUO.LegionScripting
         /// </param>
         public void DropFromCursor(uint serial = 0, int x = ushort.MaxValue, int y = ushort.MaxValue, int z = sbyte.MaxValue, uint container = uint.MaxValue) => OnMain(() =>
         {
-            if(serial == 0)
+            if (serial == 0)
             {
                 if (Client.Game.UO.GameCursor.ItemHold.Enabled)
                     serial = Client.Game.UO.GameCursor.ItemHold.Serial;
@@ -976,7 +1050,7 @@ namespace ClassicUO.LegionScripting
         /// <param name="spellName">This can be a partial match. Fireba will cast Fireball.</param>
         public void CastSpell(string spellName) => OnMain(() =>
         {
-            if(!GameActions.CastSpellByName(spellName, false))
+            if (!GameActions.CastSpellByName(spellName, false))
                 GameActions.CastSpellByName(spellName);
         });
 
@@ -1165,7 +1239,7 @@ namespace ClassicUO.LegionScripting
         /// <returns></returns>
         public ApiBuff[] ActiveBuffs() => OnMain(() =>
         {
-            if (World == null || World.Player == null) return new ApiBuff[]{};
+            if (World == null || World.Player == null) return new ApiBuff[] { };
 
             List<ApiBuff> buffs = new();
 
@@ -1661,10 +1735,11 @@ namespace ClassicUO.LegionScripting
         /// <param name="y"></param>
         /// <param name="z"></param>
         /// <param name="distance">Distance away from goal to stop.</param>
+        /// <param name="walkStyle">Sets style of walking. Use to force "only walk" or "only run".</param>
         /// <param name="wait">True/False if you want to wait for pathfinding to complete or time out</param>
-        /// <param name="timeout">Seconds to wait before cancelling waiting</param>
+        /// <param name="timeout">Milliseconds to wait before cancelling waiting</param>
         /// <returns>true/false if a path was generated</returns>
-        public bool Pathfind(int x, int y, int z = int.MinValue, int distance = 1, bool wait = false, int timeout = 10)
+        public bool Pathfind(int x, int y, int z = int.MinValue, int distance = 1, WalkStyle walkStyle = WalkStyle.Auto, bool wait = false, double timeout = 10000)
         {
             bool pathFindStatus = OnMain
             (() =>
@@ -1672,17 +1747,17 @@ namespace ClassicUO.LegionScripting
                     if (z == int.MinValue)
                         z = World.Map.GetTileZ(x, y);
 
-                    return World.Player.Pathfinder.WalkTo(x, y, z, distance);
+                    return World.Player.Pathfinder.WalkTo(x, y, z, distance, walkStyle);
                 }
             );
 
             if (!wait)
                 return pathFindStatus;
 
-            if (timeout > 30)
-                timeout = 30;
+            if (timeout > 30000)
+                timeout = 30000;
 
-            DateTime expire = DateTime.Now.AddSeconds(timeout);
+            DateTime expire = DateTime.Now.AddMilliseconds(timeout);
 
             while (OnMain(() => World.Player.Pathfinder.AutoWalking || LongDistancePathfinder.IsPathfinding()))
             {
@@ -1755,7 +1830,7 @@ namespace ClassicUO.LegionScripting
                     {
                         World.Player.Pathfinder.StopAutoWalk();
                         LongDistancePathfinder.StopPathfinding();
-                    });                    return false;
+                    }); return false;
                 }
             }
 
@@ -2496,7 +2571,7 @@ namespace ClassicUO.LegionScripting
                 if (World.Player != null && (World.Player.LastGumpID == ID || ID == uint.MaxValue))
                 {
                     Gump g = UIManager.GetGumpServer(ID == uint.MaxValue ? World.Player.LastGumpID : ID);
-                    if(g is { IsDisposed:false })
+                    if (g is { IsDisposed: false })
                         return g.ServerSerial;
                 }
 
@@ -2924,6 +2999,39 @@ namespace ClassicUO.LegionScripting
                         je.Disposed = true;
                     return true;
                 }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Wait for a message to appear in the journal with a timeout.
+        /// This does NOT clear the matched message from the journal.
+        /// Example:
+        /// ```py
+        /// if API.WaitJournal("You have been healed", 5000):
+        ///   API.SysMsg("Healing complete!")
+        /// else:
+        ///   API.SysMsg("Healing timeout!")
+        /// ```
+        /// </summary>
+        /// <param name="msg">The message to check for. Can be regex, prepend your msg with $</param>
+        /// <param name="timeout">Max duration in milliseconds to wait (default: 5000ms)</param>
+        /// <returns>True if message was found, false if timeout</returns>
+        public bool WaitJournal(string msg, double timeout = 5000)
+        {
+            if (string.IsNullOrEmpty(msg))
+                return false;
+
+            DateTime expire = DateTime.UtcNow.AddMilliseconds(timeout);
+
+            while (DateTime.UtcNow < expire)
+            {
+                if (InJournal(msg, clearMatches: false))
+                    return true;
+
+                // Small sleep to avoid busy waiting
+                Thread.Sleep(10);
             }
 
             return false;
@@ -3403,6 +3511,74 @@ namespace ClassicUO.LegionScripting
         public ApiGameObject GetTile(int x, int y) => OnMain(() => { return new ApiGameObject(World.Map.GetTile(x, y)); });
 
         /// <summary>
+        /// Check if a position is walkable/passable.
+        /// This takes into account all tiles, statics, items, and multis at the location,
+        /// properly determining which surface is on top using Z-ordering.
+        /// Example:
+        /// ```py
+        /// if API.IsWalkable(1414, 1515):
+        ///     API.SysMsg("Position is walkable!")
+        /// else:
+        ///     API.SysMsg("Position is blocked!")
+        /// ```
+        /// </summary>
+        /// <param name="x">X coordinate</param>
+        /// <param name="y">Y coordinate</param>
+        /// <returns>True if the position is walkable, false if blocked</returns>
+        public bool IsWalkable(int x, int y) => MainThreadQueue.InvokeOnMainThread(() => WalkableManager.Instance.IsWalkable(x, y));
+
+        /// <summary>
+        /// Check if a tile at a specific position and Z level is walkable.
+        /// This is more precise than IsWalkable as it checks from a specific Z coordinate.
+        /// Useful when you need to check walkability at different elevations.
+        /// Example:
+        /// ```py
+        /// # Check if position is walkable from player's Z level
+        /// z = API.Player.Z
+        /// if API.IsTileWalkable(1414, 1515, z):
+        ///     API.SysMsg("Can walk there from current elevation!")
+        /// ```
+        /// </summary>
+        /// <param name="x">X coordinate</param>
+        /// <param name="y">Y coordinate</param>
+        /// <param name="z">Z coordinate (elevation) to check from</param>
+        /// <returns>True if the tile is walkable from the specified Z level, false otherwise</returns>
+        public bool IsTileWalkable(int x, int y, int z) => MainThreadQueue.InvokeOnMainThread(() => WalkableManager.Instance.CheckTileWalkability(x, y, (sbyte)z));
+
+        /// <summary>
+        /// Efficiently check walkability for all tiles in a rectangular area.
+        /// This is highly optimized for performance and calculates from the player's current Z level.
+        /// Returns a list of results containing X, Y coordinates and walkability status.
+        /// Example:
+        /// ```py
+        /// # Check 10x10 area around player
+        /// player_x = API.Player.X
+        /// player_y = API.Player.Y
+        /// results = API.CheckAreaWalkability(player_x - 5, player_y - 5, player_x + 5, player_y + 5)
+        /// 
+        /// walkable_count = 0
+        /// for result in results:
+        ///     if result.IsWalkable:
+        ///         walkable_count += 1
+        ///         # Optionally mark walkable tiles
+        ///         # API.MarkTile(result.X, result.Y, 66)
+        /// 
+        /// API.SysMsg(f"Found {walkable_count} walkable tiles in area")
+        /// 
+        /// # Check from a specific Z level (e.g., for bridges)
+        /// results_at_z10 = API.CheckAreaWalkability(x1, y1, x2, y2, z=10)
+        /// ```
+        /// </summary>
+        /// <param name="x1">Starting X coordinate</param>
+        /// <param name="y1">Starting Y coordinate</param>
+        /// <param name="x2">Ending X coordinate</param>
+        /// <param name="y2">Ending Y coordinate</param>
+        /// <param name="z">Z coordinate to check from (defaults to player's current Z)</param>
+        /// <returns>List of walkability results, each containing X, Y, and IsWalkable</returns>
+        public IList<WalkableManager.WalkabilityResult> CheckAreaWalkability(int x1, int y1, int x2, int y2, int z = int.MinValue) =>
+            MainThreadQueue.InvokeOnMainThread(() => WalkableManager.Instance.CheckAreaWalkability(x1, y1, x2, y2, z));
+
+        /// <summary>
         /// Gets all static objects at a specific position (x, y coordinates).
         /// This includes trees, vegetation, buildings, and other non-movable scenery.
         /// Example:
@@ -3492,6 +3668,57 @@ namespace ClassicUO.LegionScripting
             }
 
             return statics;
+        });
+
+        /// <summary>
+        /// Gets all tiles objects within a rectangular area defined by coordinates.
+        /// This includes trees, vegetation, buildings, and other non-movable scenery.
+        /// </summary>
+        /// <param name="x1">Starting X coordinate</param>
+        /// <param name="y1">Starting Y coordinate</param>
+        /// <param name="x2">Ending X coordinate</param>
+        /// <param name="y2">Ending Y coordinate</param>
+        /// <returns>List of ApiGameObject objects within the specified area</returns>
+        public List<ApiGameObject> GetTilesInArea(int x1, int y1, int x2, int y2) => MainThreadQueue.InvokeOnMainThread(() =>
+        {
+            var tiles = new List<ApiGameObject>();
+
+            if (World.Map is null) return new List<ApiGameObject>();
+
+            // Ensure coordinates are in correct order
+            int minX = Math.Min(x1, x2);
+            int maxX = Math.Max(x1, x2);
+            int minY = Math.Min(y1, y2);
+            int maxY = Math.Max(y1, y2);
+
+            for (int x = minX; x <= maxX; x++)
+            {
+                for (int y = minY; y <= maxY; y++)
+                {
+                    Game.Map.Chunk chunk = World.Map.GetChunk(x, y, false);
+
+                    if (chunk != null)
+                    {
+                        GameObject obj = chunk.GetHeadObject(x % 8, y % 8);
+
+                        while (obj != null)
+                        {
+                            if (obj is Static staticObj)
+                            {
+                                tiles.Add(new ApiStatic(staticObj));
+                            }
+                            else if (obj is Land landObj)
+                            {
+                                tiles.Add(new ApiLand(landObj));
+                            }
+
+                            obj = obj.TNext;
+                        }
+                    }
+                }
+            }
+
+            return tiles;
         });
 
         /// <summary>
@@ -3744,6 +3971,55 @@ namespace ClassicUO.LegionScripting
         /// </summary>
         public ApiUiBaseControl AddControlOnDisposed(ApiUiBaseControl control, object onDispose) => Gumps.AddControlOnDisposed(control, onDispose);
 
+        /// <summary>
+        /// Efficiently check if multiple buttons are selected in a single batch operation.
+        /// This is much faster than checking IsSelected individually in a loop.
+        /// Example:
+        /// ```py
+        /// buttons = [button1, button2, button3, button4]
+        /// selected_states = API.CheckButtonsSelected(buttons)
+        /// 
+        /// for i, button in enumerate(buttons):
+        ///     if selected_states[i]:
+        ///         API.SysMsg(f"Button {i} is selected!")
+        /// ```
+        /// </summary>
+        /// <param name="buttons">List of ApiUiNiceButton objects to check</param>
+        /// <returns>List of boolean values indicating if each button is selected (same order as input)</returns>
+        public IDictionary<int, bool> CheckButtonsSelected(IList<ApiUiNiceButton> buttons)
+        {
+            if (buttons == null || buttons.Count == 0)
+                return new Dictionary<int, bool>();
+
+            return MainThreadQueue.InvokeOnMainThread(() =>
+            {
+                var results = new Dictionary<int, bool>(buttons.Count);
+
+                foreach (ApiUiNiceButton button in buttons)
+                {
+                    // Check if button is null or disposed
+                    if (button == null || button.IsDisposed)
+                    {
+                        results.TryAdd(button.ButtonParameter, false);
+                        continue;
+                    }
+
+                    // Access the underlying NiceButton directly via the internal Control property
+                    var niceButton = button.Control as NiceButton;
+                    if (niceButton != null && !niceButton.IsDisposed)
+                    {
+                        results.TryAdd(niceButton.ButtonParameter, niceButton.IsSelected);
+                    }
+                    else if (niceButton != null)
+                    {
+                        results.TryAdd(niceButton.ButtonParameter, false);
+                    }
+                }
+
+                return results;
+            });
+        }
+
         #endregion
 
         /// <summary>
@@ -3852,6 +4128,16 @@ namespace ClassicUO.LegionScripting
                     }
                 }
             }
+        );
+
+        public bool IsScriptRunning(string scriptName) => MainThreadQueue.InvokeOnMainThread
+        (() =>
+        {
+            if (string.IsNullOrEmpty(scriptName))
+                return false;
+
+            return LegionScripting.RunningScripts.Any(item => string.Compare(item.FileName, scriptName, true) == 0);
+        }
         );
 
         /// <summary>
@@ -4040,6 +4326,21 @@ namespace ClassicUO.LegionScripting
         });
 
         /// <summary>
+        /// Mark a tile with a specific hue.
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="hue"></param>
+        /// <param name="map">Defaults to current map</param>
+        public void ClearMarkedTiles(int map = -1) => MainThreadQueue.InvokeOnMainThread(() =>
+        {
+            if (map < 0)
+                map = World.Map.Index;
+
+            TileMarkerManager.Instance.ClearMarkedTiles(map);
+        });
+
+        /// <summary>
         /// Remove a marked tile. See MarkTile for more info.
         /// </summary>
         /// <param name="x"></param>
@@ -4076,6 +4377,322 @@ namespace ClassicUO.LegionScripting
                 UIManager.Add(arrow);
             }
         });
+
+        #endregion
+
+        #region Opiland WebSocket
+
+        /// <summary>
+        /// Connection information for Opiland WebSocket
+        /// </summary>
+        public class OpilandConnectionInfo
+        {
+            public string Address { get; set; }
+            public int Port { get; set; }
+            public bool IsActive { get; set; }
+        }
+
+        /// <summary>
+        /// Start the Opiland WebSocket server.
+        /// Uses profile settings as defaults if parameters are not provided.
+        /// Example:
+        /// ```py
+        /// # Use profile defaults
+        /// if API.OpilandStartServer():
+        ///     API.SysMsg("Server started")
+        /// 
+        /// # Use specific address and port
+        /// if API.OpilandStartServer("127.0.0.1", 8080):
+        ///     API.SysMsg("Server started on 127.0.0.1:8080")
+        /// ```
+        /// </summary>
+        /// <param name="address">IP address to bind to (use "0.0.0.0" for all interfaces). Defaults to profile setting.</param>
+        /// <param name="port">Port number (1-65535). Defaults to profile setting.</param>
+        /// <returns>True if server started successfully, false if already running or failed</returns>
+        public bool OpilandStartServer(string address = null, int port = 0)
+        {
+            // Use profile defaults if not provided
+            if (string.IsNullOrWhiteSpace(address))
+                address = ProfileManager.CurrentProfile?.OpilandServerIp ?? "127.0.0.1";
+
+            if (port <= 0)
+            {
+                if (int.TryParse(ProfileManager.CurrentProfile?.OpilandServerPort, out int profilePort))
+                    port = profilePort;
+                else
+                    port = 8080; // Fallback default
+            }
+
+            if (string.IsNullOrWhiteSpace(address) || port < 1 || port > 65535)
+            {
+                GameActions.Print(World, "Invalid address or port", Constants.HUE_ERROR);
+                return false;
+            }
+
+            if (OpilandServerManager.Instance.IsRunning)
+            {
+                GameActions.Print(World, "Opiland server is already running", Constants.HUE_WARN);
+                return false;
+            }
+
+            OpilandServerManager.Instance.StartServer(address, port);
+            return true;
+        }
+
+        /// <summary>
+        /// Stop the Opiland WebSocket server.
+        /// Example:
+        /// ```py
+        /// API.OpilandStopServer()
+        /// API.SysMsg("Server stopped")
+        /// ```
+        /// </summary>
+        public void OpilandStopServer()
+        {
+            OpilandServerManager.Instance.StopServer();
+        }
+
+        /// <summary>
+        /// Connect the Opiland WebSocket client to a server.
+        /// Uses profile settings as defaults if parameters are not provided.
+        /// Example:
+        /// ```py
+        /// # Use profile defaults
+        /// if API.OpilandConnectClient():
+        ///     API.SysMsg("Connected!")
+        /// 
+        /// # Use specific address and port
+        /// if API.OpilandConnectClient("127.0.0.1", 8080, "mypassword"):
+        ///     API.SysMsg("Connected to server!")
+        /// ```
+        /// </summary>
+        /// <param name="address">Server address to connect to. Defaults to profile setting.</param>
+        /// <param name="port">Server port. Defaults to profile setting.</param>
+        /// <param name="password">Optional password for authentication</param>
+        /// <returns>True if connection initiated, false if invalid parameters or already connected</returns>
+        public bool OpilandConnectClient(string address = null, int port = 0, string password = "")
+        {
+            // Use profile defaults if not provided
+            if (string.IsNullOrWhiteSpace(address))
+                address = ProfileManager.CurrentProfile?.OpilandServerIp ?? "127.0.0.1";
+
+            if (port <= 0)
+            {
+                if (int.TryParse(ProfileManager.CurrentProfile?.OpilandServerPort, out int profilePort))
+                    port = profilePort;
+                else
+                    port = 8080; // Fallback default
+            }
+
+            if (string.IsNullOrWhiteSpace(password))
+                password = ProfileManager.CurrentProfile?.OpilandServerPassword ?? "";
+
+            if (string.IsNullOrWhiteSpace(address) || port < 1 || port > 65535)
+            {
+                GameActions.Print(World, "Invalid address or port", Constants.HUE_ERROR);
+                return false;
+            }
+
+            if (OpilandClientManager.Instance.IsConnected)
+            {
+                GameActions.Print(World, "Opiland client is already connected", Constants.HUE_WARN);
+                return false;
+            }
+
+            // Use Task.Run to not block the script thread
+            Task.Run(async () =>
+            {
+                bool success = await OpilandClientManager.Instance.ConnectAsync(address, port, password);
+                if (!success)
+                {
+                    MainThreadQueue.EnqueueAction(() =>
+                    {
+                        GameActions.Print(World, "Failed to connect to Opiland server", Constants.HUE_ERROR);
+                    });
+                }
+            });
+
+            return true;
+        }
+
+        /// <summary>
+        /// Disconnect the Opiland WebSocket client.
+        /// Example:
+        /// ```py
+        /// API.OpilandDisconnectClient()
+        /// API.SysMsg("Disconnected from server")
+        /// ```
+        /// </summary>
+        public void OpilandDisconnectClient()
+        {
+            OpilandClientManager.Instance.Disconnect();
+        }
+
+        /// <summary>
+        /// Send a message from the Opiland client to the connected server.
+        /// Example:
+        /// ```py
+        /// if API.OpilandClientIsConnected():
+        ///     API.OpilandClientSendMessage("Hello server!")
+        /// ```
+        /// </summary>
+        /// <param name="message">Message to send</param>
+        public void OpilandClientSendMessage(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                GameActions.Print(World, "Message cannot be empty", Constants.HUE_WARN);
+                return;
+            }
+
+            if (!OpilandClientManager.Instance.IsConnected)
+            {
+                GameActions.Print(World, "Opiland client is not connected", Constants.HUE_WARN);
+                return;
+            }
+
+            OpilandClientManager.Instance.SendMessage(message);
+        }
+
+        /// <summary>
+        /// Send a message from the Opiland server to a specific client.
+        /// Example:
+        /// ```py
+        /// # Get client ID from server event
+        /// def on_client_connected(client_id, address):
+        ///     API.OpilandServerSendMessage(client_id, "Welcome!")
+        /// ```
+        /// </summary>
+        /// <param name="clientId">The client ID to send to</param>
+        /// <param name="message">Message to send</param>
+        public void OpilandServerSendMessage(string clientId, string message)
+        {
+            if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(message))
+            {
+                GameActions.Print(World, "Client ID and message cannot be empty", Constants.HUE_WARN);
+                return;
+            }
+
+            if (!OpilandServerManager.Instance.IsRunning)
+            {
+                GameActions.Print(World, "Opiland server is not running", Constants.HUE_WARN);
+                return;
+            }
+
+            Task.Run(async () => await OpilandServerManager.Instance.SendMessageAsync(clientId, message));
+        }
+
+        /// <summary>
+        /// Broadcast a message from the Opiland server to all connected clients.
+        /// Example:
+        /// ```py
+        /// if API.OpilandServerIsRunning():
+        ///     API.OpilandServerBroadcast("Server announcement: Maintenance in 5 minutes!")
+        /// ```
+        /// </summary>
+        /// <param name="message">Message to broadcast</param>
+        public void OpilandServerBroadcast(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                GameActions.Print(World, "Message cannot be empty", Constants.HUE_WARN);
+                return;
+            }
+
+            if (!OpilandServerManager.Instance.IsRunning)
+            {
+                GameActions.Print(World, "Opiland server is not running", Constants.HUE_WARN);
+                return;
+            }
+
+            Task.Run(async () => await OpilandServerManager.Instance.BroadcastMessageAsync(message));
+        }
+
+        /// <summary>
+        /// Check if the Opiland WebSocket server is currently running.
+        /// Example:
+        /// ```py
+        /// if API.OpilandServerIsRunning():
+        ///     API.SysMsg("Server is running")
+        ///     count = API.OpilandServerClientCount()
+        ///     API.SysMsg(f"Connected clients: {count}")
+        /// ```
+        /// </summary>
+        /// <returns>True if server is running, false otherwise</returns>
+        public bool OpilandServerIsRunning()
+        {
+            return OpilandServerManager.Instance.IsRunning;
+        }
+
+        /// <summary>
+        /// Check if the Opiland WebSocket client is currently connected to a server.
+        /// Example:
+        /// ```py
+        /// if API.OpilandClientIsConnected():
+        ///     API.SysMsg("Connected to server")
+        ///     API.OpilandClientSendMessage("Hello!")
+        /// ```
+        /// </summary>
+        /// <returns>True if client is connected, false otherwise</returns>
+        public bool OpilandClientIsConnected()
+        {
+            return OpilandClientManager.Instance.IsConnected;
+        }
+
+        /// <summary>
+        /// Get the number of clients currently connected to the Opiland server.
+        /// Example:
+        /// ```py
+        /// if API.OpilandServerIsRunning():
+        ///     count = API.OpilandServerClientCount()
+        ///     API.SysMsg(f"Server has {count} connected clients")
+        /// ```
+        /// </summary>
+        /// <returns>Number of connected clients, or 0 if server is not running</returns>
+        public int OpilandServerClientCount()
+        {
+            return OpilandServerManager.Instance.ConnectedClientsCount;
+        }
+
+        /// <summary>
+        /// Get the current Opiland server connection information.
+        /// Example:
+        /// ```py
+        /// if API.OpilandServerIsRunning():
+        ///     info = API.OpilandServerGetInfo()
+        ///     API.SysMsg(f"Server running on {info.Address}:{info.Port}")
+        /// ```
+        /// </summary>
+        /// <returns>OpilandConnectionInfo with address, port, and active status</returns>
+        public OpilandConnectionInfo OpilandServerGetInfo()
+        {
+            return new OpilandConnectionInfo
+            {
+                Address = OpilandServerManager.Instance.CurrentAddress ?? "",
+                Port = OpilandServerManager.Instance.CurrentPort,
+                IsActive = OpilandServerManager.Instance.IsRunning
+            };
+        }
+
+        /// <summary>
+        /// Get the current Opiland client connection information.
+        /// Example:
+        /// ```py
+        /// if API.OpilandClientIsConnected():
+        ///     info = API.OpilandClientGetInfo()
+        ///     API.SysMsg(f"Connected to {info.Address}:{info.Port}")
+        /// ```
+        /// </summary>
+        /// <returns>OpilandConnectionInfo with address, port, and connected status</returns>
+        public OpilandConnectionInfo OpilandClientGetInfo()
+        {
+            return new OpilandConnectionInfo
+            {
+                Address = OpilandClientManager.Instance.CurrentAddress ?? "",
+                Port = OpilandClientManager.Instance.CurrentPort,
+                IsActive = OpilandClientManager.Instance.IsConnected
+            };
+        }
 
         #endregion
     }

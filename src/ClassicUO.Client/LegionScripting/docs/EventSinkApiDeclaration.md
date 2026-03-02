@@ -12,6 +12,33 @@ description: EventSinkApiDeclaration class documentation
 *No enums found.*
 
 ## Methods
+### OnOpilandMessage
+`(callback)`
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `callback` | `object` | ❌ No |  |
+
+**Return Type:** `void` *(Does not return anything)*
+
+---
+
+### OnMobileAnimation
+`(callback)`
+ Invoked when animation is set on mobile
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `callback` | `object` | ❌ No |  |
+
+**Return Type:** `void` *(Does not return anything)*
+
+---
+
 ### OnItemCreated
 `(callback)`
  Invoked when an item is added to the client.

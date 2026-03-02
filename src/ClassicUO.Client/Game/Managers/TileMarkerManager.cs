@@ -1,4 +1,4 @@
-﻿using ClassicUO.Configuration;
+using ClassicUO.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -66,6 +66,17 @@ namespace ClassicUO.Game.Managers
                 // Reset hue to 0 for all live tiles at this location
                 UpdateLiveTilesAt(x, y, map, 0);
             }
+        }
+
+        public void ClearMarkedTiles(int map)
+        {
+            // Reset hue to 0 for all currently marked tiles
+            foreach (KeyValuePair<TileLocation, ushort> kvp in markedTiles)
+            {
+                TileLocation loc = kvp.Key;
+                UpdateLiveTilesAt(loc.X, loc.Y, map, 0);
+            }
+            markedTiles.Clear();
         }
 
         public bool IsTileMarked(int x, int y, int map, out ushort hue) => markedTiles.TryGetValue(new TileLocation(x, y, map), out hue);
