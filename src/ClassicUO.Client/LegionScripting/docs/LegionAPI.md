@@ -170,6 +170,13 @@ You can now type `-updateapi` in game to download the latest API.py file.
 - `Server`
 - `Global`
 
+### WalkStyle
+
+**Values:**
+- `Auto`
+- `WalkOnly`
+- `RunOnly`
+
 
 ## Methods
 ### ProcessCallbacks
@@ -190,6 +197,51 @@ You can now type `-updateapi` in game to download the latest API.py file.
 ### Dispose
 
 **Return Type:** `void` *(Does not return anything)*
+
+---
+
+### GetLastAttackSerial
+
+**Return Type:** `uint`
+
+---
+
+### HasDirectPathTo
+`(obj)`
+ Check if there is a direct, unobstructed path to a mobile.
+ This checks if any coordinate along the line of sight is blocked by impassable terrain (water) or statics (trees, walls, etc.).
+ Example:
+ ```py
+ mob = API.FindMobile(0x12345678)
+ if mob and API.HasDirectPathTo(mob):
+   API.SysMsg("Clear line of sight to target!")
+   API.CastSpell("Lightning")
+   API.WaitForTarget()
+   API.Target(mob.Serial)
+ else:
+   API.SysMsg("Path is blocked!")
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `obj` | `ApiMobile` | ❌ No | The mobile to check path to |
+
+**Return Type:** `bool`
+
+---
+
+### GetEntityScreenPosition
+`(serial)`
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `serial` | `uint` | ❌ No |  |
+
+**Return Type:** `ApiPoint2D`
 
 ---
 
@@ -1377,7 +1429,7 @@ You can now type `-updateapi` in game to download the latest API.py file.
 ---
 
 ### Pathfind
-`(x, y, z, distance, wait, timeout)`
+`(x, y, z, distance, walkStyle, wait, timeout)`
  Attempt to pathfind to a location.  This will fail with large distances.
  Example:
  ```py
@@ -1393,8 +1445,9 @@ You can now type `-updateapi` in game to download the latest API.py file.
 | `y` | `int` | ❌ No |  |
 | `z` | `int` | ✅ Yes |  |
 | `distance` | `int` | ✅ Yes | Distance away from goal to stop. |
+| `walkStyle` | `WalkStyle` | ✅ Yes | Sets style of walking. Use to force "only walk" or "only run". |
 | `wait` | `bool` | ✅ Yes | True/False if you want to wait for pathfinding to complete or time out |
-| `timeout` | `int` | ✅ Yes | Seconds to wait before cancelling waiting |
+| `timeout` | `double` | ✅ Yes | Milliseconds to wait before cancelling waiting |
 
 **Return Type:** `bool`
 
@@ -2321,6 +2374,30 @@ You can now type `-updateapi` in game to download the latest API.py file.
 
 ---
 
+### WaitJournal
+`(msg, timeout)`
+ Wait for a message to appear in the journal with a timeout.
+ This does NOT clear the matched message from the journal.
+ Example:
+ ```py
+ if API.WaitJournal("You have been healed", 5000):
+   API.SysMsg("Healing complete!")
+ else:
+   API.SysMsg("Healing timeout!")
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `msg` | `string` | ❌ No | The message to check for. Can be regex, prepend your msg with $ |
+| `timeout` | `double` | ✅ Yes | Max duration in milliseconds to wait (default: 5000ms) |
+
+**Return Type:** `bool`
+
+---
+
 ### ClearSoundLog
 
  Clear your sound log (This is specific for each script).
@@ -2697,6 +2774,97 @@ You can now type `-updateapi` in game to download the latest API.py file.
 
 ---
 
+### IsWalkable
+`(x, y)`
+ Check if a position is walkable/passable.
+ This takes into account all tiles, statics, items, and multis at the location,
+ properly determining which surface is on top using Z-ordering.
+ Example:
+ ```py
+ if API.IsWalkable(1414, 1515):
+     API.SysMsg("Position is walkable!")
+ else:
+     API.SysMsg("Position is blocked!")
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `x` | `int` | ❌ No | X coordinate |
+| `y` | `int` | ❌ No | Y coordinate |
+
+**Return Type:** `bool`
+
+---
+
+### IsTileWalkable
+`(x, y, z)`
+ Check if a tile at a specific position and Z level is walkable.
+ This is more precise than IsWalkable as it checks from a specific Z coordinate.
+ Useful when you need to check walkability at different elevations.
+ Example:
+ ```py
+ # Check if position is walkable from player's Z level
+ z = API.Player.Z
+ if API.IsTileWalkable(1414, 1515, z):
+     API.SysMsg("Can walk there from current elevation!")
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `x` | `int` | ❌ No | X coordinate |
+| `y` | `int` | ❌ No | Y coordinate |
+| `z` | `int` | ❌ No | Z coordinate (elevation) to check from |
+
+**Return Type:** `bool`
+
+---
+
+### CheckAreaWalkability
+`(x1, y1, x2, y2, z)`
+ Efficiently check walkability for all tiles in a rectangular area.
+ This is highly optimized for performance and calculates from the player's current Z level.
+ Returns a list of results containing X, Y coordinates and walkability status.
+ Example:
+ ```py
+ # Check 10x10 area around player
+ player_x = API.Player.X
+ player_y = API.Player.Y
+ results = API.CheckAreaWalkability(player_x - 5, player_y - 5, player_x + 5, player_y + 5)
+ 
+ walkable_count = 0
+ for result in results:
+     if result.IsWalkable:
+         walkable_count += 1
+         # Optionally mark walkable tiles
+         # API.MarkTile(result.X, result.Y, 66)
+ 
+ API.SysMsg(f"Found {walkable_count} walkable tiles in area")
+ 
+ # Check from a specific Z level (e.g., for bridges)
+ results_at_z10 = API.CheckAreaWalkability(x1, y1, x2, y2, z=10)
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `x1` | `int` | ❌ No | Starting X coordinate |
+| `y1` | `int` | ❌ No | Starting Y coordinate |
+| `x2` | `int` | ❌ No | Ending X coordinate |
+| `y2` | `int` | ❌ No | Ending Y coordinate |
+| `z` | `int` | ✅ Yes | Z coordinate to check from (defaults to player's current Z) |
+
+**Return Type:** `IList<WalkableManager.WalkabilityResult>`
+
+---
+
 ### GetStaticsAt
 `(x, y)`
  Gets all static objects at a specific position (x, y coordinates).
@@ -2744,6 +2912,25 @@ You can now type `-updateapi` in game to download the latest API.py file.
 | `y2` | `int` | ❌ No | Ending Y coordinate |
 
 **Return Type:** `List<ApiStatic>`
+
+---
+
+### GetTilesInArea
+`(x1, y1, x2, y2)`
+ Gets all tiles objects within a rectangular area defined by coordinates.
+ This includes trees, vegetation, buildings, and other non-movable scenery.
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `x1` | `int` | ❌ No | Starting X coordinate |
+| `y1` | `int` | ❌ No | Starting Y coordinate |
+| `x2` | `int` | ❌ No | Ending X coordinate |
+| `y2` | `int` | ❌ No | Ending Y coordinate |
+
+**Return Type:** `List<ApiGameObject>`
 
 ---
 
@@ -3212,6 +3399,31 @@ You can now type `-updateapi` in game to download the latest API.py file.
 
 ---
 
+### CheckButtonsSelected
+`(buttons)`
+ Efficiently check if multiple buttons are selected in a single batch operation.
+ This is much faster than checking IsSelected individually in a loop.
+ Example:
+ ```py
+ buttons = [button1, button2, button3, button4]
+ selected_states = API.CheckButtonsSelected(buttons)
+ 
+ for i, button in enumerate(buttons):
+     if selected_states[i]:
+         API.SysMsg(f"Button {i} is selected!")
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `buttons` | `IList<ApiUiNiceButton>` | ❌ No | List of ApiUiNiceButton objects to check |
+
+**Return Type:** `IDictionary<int, bool>`
+
+---
+
 ### GetSkill
 `(skill)`
  Get a skill from the player. See the Skill class for what properties are available: https://github.com/PlayTazUO/TazUO/blob/main/src/ClassicUO.Client/Game/Data/Skill.cs
@@ -3287,6 +3499,18 @@ You can now type `-updateapi` in game to download the latest API.py file.
 | `scriptName` | `string` | ❌ No | This is the file name including extension. |
 
 **Return Type:** `void` *(Does not return anything)*
+
+---
+
+### IsScriptRunning
+`(scriptName)`
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `scriptName` | `string` | ❌ No |  |
+
+**Return Type:** `bool`
 
 ---
 
@@ -3471,6 +3695,21 @@ You can now type `-updateapi` in game to download the latest API.py file.
 
 ---
 
+### ClearMarkedTiles
+`(map)`
+ Mark a tile with a specific hue.
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `map` | `int` | ✅ Yes | Defaults to current map |
+
+**Return Type:** `void` *(Does not return anything)*
+
+---
+
 ### RemoveMarkedTile
 `(x, y, map)`
  Remove a marked tile. See MarkTile for more info.
@@ -3506,6 +3745,227 @@ You can now type `-updateapi` in game to download the latest API.py file.
 | `identifier` | `uint` | ✅ Yes | An identified number if you want multiple arrows. |
 
 **Return Type:** `void` *(Does not return anything)*
+
+---
+
+### OpilandStartServer
+`(address, port)`
+ Start the Opiland WebSocket server.
+ Uses profile settings as defaults if parameters are not provided.
+ Example:
+ ```py
+ # Use profile defaults
+ if API.OpilandStartServer():
+     API.SysMsg("Server started")
+ 
+ # Use specific address and port
+ if API.OpilandStartServer("127.0.0.1", 8080):
+     API.SysMsg("Server started on 127.0.0.1:8080")
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `address` | `string` | ✅ Yes | IP address to bind to (use "0.0.0.0" for all interfaces). Defaults to profile setting. |
+| `port` | `int` | ✅ Yes | Port number (1-65535). Defaults to profile setting. |
+
+**Return Type:** `bool`
+
+---
+
+### OpilandStopServer
+
+ Stop the Opiland WebSocket server.
+ Example:
+ ```py
+ API.OpilandStopServer()
+ API.SysMsg("Server stopped")
+ ```
+
+
+**Return Type:** `void` *(Does not return anything)*
+
+---
+
+### OpilandConnectClient
+`(address, port, password)`
+ Connect the Opiland WebSocket client to a server.
+ Uses profile settings as defaults if parameters are not provided.
+ Example:
+ ```py
+ # Use profile defaults
+ if API.OpilandConnectClient():
+     API.SysMsg("Connected!")
+ 
+ # Use specific address and port
+ if API.OpilandConnectClient("127.0.0.1", 8080, "mypassword"):
+     API.SysMsg("Connected to server!")
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `address` | `string` | ✅ Yes | Server address to connect to. Defaults to profile setting. |
+| `port` | `int` | ✅ Yes | Server port. Defaults to profile setting. |
+| `password` | `string` | ✅ Yes | Optional password for authentication |
+
+**Return Type:** `bool`
+
+---
+
+### OpilandDisconnectClient
+
+ Disconnect the Opiland WebSocket client.
+ Example:
+ ```py
+ API.OpilandDisconnectClient()
+ API.SysMsg("Disconnected from server")
+ ```
+
+
+**Return Type:** `void` *(Does not return anything)*
+
+---
+
+### OpilandClientSendMessage
+`(message)`
+ Send a message from the Opiland client to the connected server.
+ Example:
+ ```py
+ if API.OpilandClientIsConnected():
+     API.OpilandClientSendMessage("Hello server!")
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `message` | `string` | ❌ No | Message to send |
+
+**Return Type:** `void` *(Does not return anything)*
+
+---
+
+### OpilandServerSendMessage
+`(clientId, message)`
+ Send a message from the Opiland server to a specific client.
+ Example:
+ ```py
+ # Get client ID from server event
+ def on_client_connected(client_id, address):
+     API.OpilandServerSendMessage(client_id, "Welcome!")
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `clientId` | `string` | ❌ No | The client ID to send to |
+| `message` | `string` | ❌ No | Message to send |
+
+**Return Type:** `void` *(Does not return anything)*
+
+---
+
+### OpilandServerBroadcast
+`(message)`
+ Broadcast a message from the Opiland server to all connected clients.
+ Example:
+ ```py
+ if API.OpilandServerIsRunning():
+     API.OpilandServerBroadcast("Server announcement: Maintenance in 5 minutes!")
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `message` | `string` | ❌ No | Message to broadcast |
+
+**Return Type:** `void` *(Does not return anything)*
+
+---
+
+### OpilandServerIsRunning
+
+ Check if the Opiland WebSocket server is currently running.
+ Example:
+ ```py
+ if API.OpilandServerIsRunning():
+     API.SysMsg("Server is running")
+     count = API.OpilandServerClientCount()
+     API.SysMsg(f"Connected clients: {count}")
+ ```
+
+
+**Return Type:** `bool`
+
+---
+
+### OpilandClientIsConnected
+
+ Check if the Opiland WebSocket client is currently connected to a server.
+ Example:
+ ```py
+ if API.OpilandClientIsConnected():
+     API.SysMsg("Connected to server")
+     API.OpilandClientSendMessage("Hello!")
+ ```
+
+
+**Return Type:** `bool`
+
+---
+
+### OpilandServerClientCount
+
+ Get the number of clients currently connected to the Opiland server.
+ Example:
+ ```py
+ if API.OpilandServerIsRunning():
+     count = API.OpilandServerClientCount()
+     API.SysMsg(f"Server has {count} connected clients")
+ ```
+
+
+**Return Type:** `int`
+
+---
+
+### OpilandServerGetInfo
+
+ Get the current Opiland server connection information.
+ Example:
+ ```py
+ if API.OpilandServerIsRunning():
+     info = API.OpilandServerGetInfo()
+     API.SysMsg(f"Server running on {info.Address}:{info.Port}")
+ ```
+
+
+**Return Type:** `OpilandConnectionInfo`
+
+---
+
+### OpilandClientGetInfo
+
+ Get the current Opiland client connection information.
+ Example:
+ ```py
+ if API.OpilandClientIsConnected():
+     info = API.OpilandClientGetInfo()
+     API.SysMsg(f"Connected to {info.Address}:{info.Port}")
+ ```
+
+
+**Return Type:** `OpilandConnectionInfo`
 
 ---
 

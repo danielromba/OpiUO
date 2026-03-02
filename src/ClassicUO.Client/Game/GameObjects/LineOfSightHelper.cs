@@ -21,14 +21,14 @@ namespace ClassicUO.Game.GameObjects
             if (observer.X == target.X && observer.Y == target.Y && observer.Z == target.Z)
                 return true;
 
-            List<Point3D> coords = CoordsToTarget(observer, target);
+            List<LoSPoint3D> coords = CoordsToTarget(observer, target);
 
             return CheckCoords(observer, target, coords);
         }
 
-        private static List<Point3D> CoordsToTarget(GameObject observer, GameObject target)
+        public static List<LoSPoint3D> CoordsToTarget(GameObject observer, GameObject target)
         {
-            var coords = new List<Point3D>();
+            var coords = new List<LoSPoint3D>();
             int x0 = observer.X, y0 = observer.Y;
             int x1 = target.X, y1 = target.Y;
 
@@ -40,7 +40,7 @@ namespace ClassicUO.Game.GameObjects
             while (true)
             {
                 int z = GetLandZ(x0, y0);
-                coords.Add(new Point3D(x0, y0, z));
+                coords.Add(new LoSPoint3D(x0, y0, z));
 
                 if (x0 == x1 && y0 == y1)
                     break;
@@ -60,14 +60,14 @@ namespace ClassicUO.Game.GameObjects
             return coords;
         }
 
-        private static bool CheckCoords(GameObject observer, GameObject target, List<Point3D> coords)
+        private static bool CheckCoords(GameObject observer, GameObject target, List<LoSPoint3D> coords)
         {
             List<int> zlist = new();
 
             int observerEyeZ = observer.Z + MOBILE_EYE_HEIGHT;
             int targetEyeZ = target.Z + MOBILE_EYE_HEIGHT;
 
-            foreach (Point3D coord in coords)
+            foreach (LoSPoint3D coord in coords)
             {
                 zlist.Add(coord.Z);
                 if (!CheckTile(coord.X, coord.Y, observerEyeZ, targetEyeZ))
@@ -150,13 +150,14 @@ namespace ClassicUO.Game.GameObjects
             return true;
         }
 
-        private readonly struct Point3D
+    }
+
+    public readonly struct LoSPoint3D
+    {
+        public readonly int X, Y, Z;
+        public LoSPoint3D(int x, int y, int z)
         {
-            public readonly int X, Y, Z;
-            public Point3D(int x, int y, int z)
-            {
-                X = x; Y = y; Z = z;
-            }
+            X = x; Y = y; Z = z;
         }
     }
 }

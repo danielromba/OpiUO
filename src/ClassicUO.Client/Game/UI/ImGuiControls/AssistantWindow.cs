@@ -11,6 +11,7 @@ namespace ClassicUO.Game.UI.ImGuiControls
         private ItemDatabaseTabContent _itemDatabaseTab;
         private MacrosTabContent _macrosTab;
         private SkillsTabContent _skillsTab;
+        private OpilandTabContent _opilandTab;
 
         private AssistantWindow() : base("Legion Assistant")
         {
@@ -23,6 +24,7 @@ namespace ClassicUO.Game.UI.ImGuiControls
             _itemDatabaseTab = new ItemDatabaseTabContent();
             _macrosTab = new MacrosTabContent();
             _skillsTab = new SkillsTabContent();
+            _opilandTab = new OpilandTabContent();
         }
 
         public override void DrawContent()
@@ -72,6 +74,12 @@ namespace ClassicUO.Game.UI.ImGuiControls
                     ImGui.EndTabItem();
                 }
 
+                if (ImGui.BeginTabItem("Opiland"))
+                {
+                    _opilandTab.DrawContent();
+                    ImGui.EndTabItem();
+                }
+
                 ImGui.EndTabBar();
             }
         }
@@ -91,6 +99,7 @@ namespace ClassicUO.Game.UI.ImGuiControls
             _itemDatabaseTab?.Dispose();
             _macrosTab?.Dispose();
             _skillsTab?.Dispose();
+            _opilandTab?.Dispose();
             base.Dispose();
         }
     }
