@@ -19,7 +19,7 @@ namespace ClassicUO.Resources {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "18.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class ResGumps {
@@ -457,7 +457,7 @@ namespace ClassicUO.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Base.
+        ///   Looks up a localized string similar to Total.
         /// </summary>
         public static string Base {
             get {
@@ -1660,6 +1660,18 @@ namespace ClassicUO.Resources {
         public static string Gold {
             get {
                 return ResourceManager.GetString("Gold", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Examples:
+        /// 1639, 1532
+        /// 100o25&apos;S,40o04&apos;E
+        /// 9 14&apos;N 91 37&apos;W.
+        /// </summary>
+        public static string GoToExampleLabel {
+            get {
+                return ResourceManager.GetString("GoToExampleLabel", resourceCulture);
             }
         }
         
@@ -2882,6 +2894,15 @@ namespace ClassicUO.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to [Opiland]:.
+        /// </summary>
+        public static string Opiland {
+            get {
+                return ResourceManager.GetString("Opiland", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to &lt;out of range&gt;.
         /// </summary>
         public static string OutOfRange {
@@ -3745,15 +3766,7 @@ namespace ClassicUO.Resources {
                 return ResourceManager.GetString("ShowTarRangeIndic", resourceCulture);
             }
         }
-
-        public static string AutoAvoidObstacules
-        {
-            get
-            {
-                return ResourceManager.GetString("AutoAvoidObstacules", resourceCulture);
-            }
-        }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Show your coordinates.
         /// </summary>
@@ -4566,15 +4579,6 @@ namespace ClassicUO.Resources {
         public static string YourCurrentChannel {
             get {
                 return ResourceManager.GetString("YourCurrentChannel", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///     Looks up a localized string similar to Examples:\n 1639, 1532\n 100o25'S,40o04'E\n 9 14'N 91 37'W
-        /// </summary>
-        public static string GoToExampleLabel {
-            get {
-                return ResourceManager.GetString("GoToExampleLabel", resourceCulture);
             }
         }
     }

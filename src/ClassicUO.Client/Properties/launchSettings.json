@@ -1,8 +1,7 @@
 {
   "profiles": {
     "ClassicUO": {
-      "commandName": "Project",
-      "commandLineArgs": "-endor"
+      "commandName": "Project"
     },
     "ClassicUO Profiler": {
       "commandName": "Project",

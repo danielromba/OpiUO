@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: BSD-2-Clause
+// SPDX-License-Identifier: BSD-2-Clause
 
 using System;
 
@@ -23,6 +23,7 @@ namespace ClassicUO.Game.Data
         ChatSystem, //TazUO Addition, value unimportant
         Damage, //TazUO Addition, value unimportant
         Discord, //TazUO Addition, value unimportant
+        Opiland,
         Party = 0xFF // This is a CUO assigned type, value is unimportant
     }
 }

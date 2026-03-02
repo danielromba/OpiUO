@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.Managers;
@@ -15,6 +12,11 @@ using ClassicUO.Resources;
 using ClassicUO.Utility.Logging;
 using ClassicUO.Utility.Platforms;
 using SDL3;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using static IronPython.Modules._ast;
+using static System.Net.Mime.MediaTypeNames;
 using Control = ClassicUO.Game.UI.Controls.Control;
 using Label = ClassicUO.Game.UI.Controls.Label;
 using TextBox = ClassicUO.Game.UI.Controls.TextBox;
@@ -33,6 +35,7 @@ namespace ClassicUO.Game.UI.Gumps
         Alliance,
         ClientCommand,
         UOAMChat,
+        Opiland,
         Prompt,
         UOChat,
         ServUOCommand,
@@ -116,6 +119,11 @@ namespace ClassicUO.Game.UI.Gumps
             WantUpdateSize = false;
 
             EventSink.MessageReceived += ChatOnMessageReceived;
+
+            // Subscribe to Opiland chat messages
+            OpilandClientManager.Instance.ChatMessageReceived += OnOpilandChatReceived;
+            OpilandServerManager.Instance.ChatMessageReceived += OnOpilandChatReceivedFromServer;
+
             Mode = ChatMode.Default;
 
             IsActive = !ProfileManager.CurrentProfile.ActivateChatAfterEnter;
@@ -199,6 +207,12 @@ namespace ClassicUO.Game.UI.Gumps
 
                             break;
 
+                        case ChatMode.Opiland:
+                            DisposeChatModePrefix();
+                            AppendChatModePrefix(ResGumps.Opiland, 83, TextBoxControl.Text);
+
+                            break;
+
                         case ChatMode.UOChat:
                             DisposeChatModePrefix();
 
@@ -229,7 +243,7 @@ namespace ClassicUO.Game.UI.Gumps
             UIManager.KeyboardFocusControl = null;
             TextBoxControl.IsEditable = _isActive;
 
-            if(_isActive)
+            if (_isActive)
                 TextBoxControl.SetKeyboardFocus();
 
             _trans.IsVisible = _isActive;
@@ -286,6 +300,9 @@ namespace ClassicUO.Game.UI.Gumps
                 case MessageType.ChatSystem:
                     AddLine($"{e.Name}: {e.Text}", e.Font, ProfileManager.CurrentProfile.ChatMessageHue, e.IsUnicode);
                     break;
+                case MessageType.Opiland:
+                    AddLine(e.Text, e.Font, e.Hue, e.IsUnicode);
+                    break;
                 default:
 
                     if (e.Parent == null || !SerialHelper.IsValid(e.Parent.Serial))
@@ -303,7 +320,31 @@ namespace ClassicUO.Game.UI.Gumps
         public override void Dispose()
         {
             EventSink.MessageReceived -= ChatOnMessageReceived;
+            OpilandClientManager.Instance.ChatMessageReceived -= OnOpilandChatReceived;
+            OpilandServerManager.Instance.ChatMessageReceived -= OnOpilandChatReceivedFromServer;
             base.Dispose();
+        }
+
+        private void OnOpilandChatReceived(object sender, ChatMessageReceivedEventArgs e)
+        {
+            if (e.Message != null)
+            {
+                string displayText = $"[{e.Message.Sender}]: {e.Message.Text}";
+                GameActions.Print(_gump.World, displayText, e.Message.Hue, MessageType.Opiland);
+                //AddLine(displayText, 3, e.Message.Hue, true);
+            }
+        }
+
+        private void OnOpilandChatReceivedFromServer(object sender, ChatMessageReceivedEventArgs e)
+        {
+            if (e.Message != null && e.ClientId != null)
+            {
+                // Only display if this is not from ourselves
+                // (server broadcasts include our own messages)
+                string displayText = $"[{e.Message.Sender}]: {e.Message.Text}";
+                GameActions.Print(_gump.World, displayText, e.Message.Hue, MessageType.Opiland);
+                //AddLine(displayText, 3, e.Message.Hue, true);
+            }
         }
 
         private void AppendChatModePrefix(string labelText, ushort hue, string text)
@@ -486,7 +527,8 @@ namespace ClassicUO.Game.UI.Gumps
             }
             else if (Mode == ChatMode.ClientCommand && TextBoxControl.Text.Length == 1 && TextBoxControl.Text[0] == '-')
             {
-                Mode = ChatMode.UOAMChat;
+                // No more UOAM...
+                Mode = ChatMode.Opiland;
             }
 
             base.Update();
@@ -693,7 +735,7 @@ namespace ClassicUO.Game.UI.Gumps
                 fullText = $"{prefix}{command} {text}";
                 modMode = ChatMode.Default;
             }
-            if(_messageHistory.Count < 1 || (_messageHistory[_messageHistory.Count - 1].Item1 != sentMode || _messageHistory[_messageHistory.Count - 1].Item2 != fullText))
+            if (_messageHistory.Count < 1 || (_messageHistory[_messageHistory.Count - 1].Item1 != sentMode || _messageHistory[_messageHistory.Count - 1].Item2 != fullText))
             {
                 //Add to history if last message was not the same
                 _messageHistory.Add(new Tuple<ChatMode, string>(modMode, fullText));
@@ -971,6 +1013,43 @@ namespace ClassicUO.Game.UI.Gumps
 
                     case ChatMode.UOAMChat:
                         break;
+                    case ChatMode.Opiland: // OPILAND CHAT
+                        // Don't attempt to send if not connected to Opiland network
+                        if (!OpilandClientManager.Instance.IsConnected && !OpilandServerManager.Instance.IsRunning)
+                            break;
+
+                        // No real message to send
+                        if (string.IsNullOrWhiteSpace(text))
+                            break;
+
+                        var name = _gump.World.Player.Name;
+                        if (!string.IsNullOrWhiteSpace(ProfileManager.CurrentProfile.OpilandClientCustomName))
+                            name = ProfileManager.CurrentProfile.OpilandClientCustomName.Trim();
+
+                        // Send Opiland chat message
+                        if (OpilandClientManager.Instance.IsConnected)
+                        {
+                            OpilandClientManager.Instance.SendChatMessage(
+                                text,
+                                name,
+                                (ushort)ProfileManager.CurrentProfile.OpilandClientCustomNameHue
+                            );
+                            GameActions.Print(_gump.World, $"[{name}] {text}", (ushort)ProfileManager.CurrentProfile.OpilandClientCustomNameHue, MessageType.Opiland);
+                        }
+                        else
+                        {
+                            var chatMsg = OpilandMessageParser.CreateChatMessage(
+                                _gump.World.Player.Serial,
+                                name,
+                                text,
+                                (ushort)ProfileManager.CurrentProfile.OpilandClientCustomNameHue
+                            );
+                            _ = OpilandServerManager.Instance.BroadcastMessageAsync(chatMsg.Serialize());
+                            GameActions.Print(_gump.World, $"[{chatMsg.Sender}] {chatMsg.Text}", chatMsg.Hue, MessageType.Opiland);
+                        }
+
+
+                        break;
 
                     case ChatMode.UOChat:
                         AsyncNetClient.Socket.Send_ChatMessageCommand(text);
@@ -995,7 +1074,7 @@ namespace ClassicUO.Game.UI.Gumps
                 }
             }
 
-            if(!sendAgain)
+            if (!sendAgain)
             {
                 DisposeChatModePrefix();
                 command = string.Empty;

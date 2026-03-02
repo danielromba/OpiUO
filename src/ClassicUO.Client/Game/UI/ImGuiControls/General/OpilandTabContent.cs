@@ -100,7 +100,7 @@ namespace ClassicUO.Game.UI.ImGuiControls
 
         private void OnClientMessageReceived(object sender, ClientMessageReceivedEventArgs e)
         {
-            GameActions.Print(World.Instance, $"Opiland: {e.Message}");
+            //GameActions.Print(World.Instance, $"Opiland: {e.Message}");
         }
 
         public override void DrawContent()

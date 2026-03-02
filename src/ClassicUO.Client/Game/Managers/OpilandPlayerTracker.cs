@@ -57,62 +57,65 @@ public sealed class OpilandPlayerTracker
         public string ClientId { get; set; } // For server tracking
     }
 
-    /// <summary>
-    /// Message protocol: OPILAND_POS|PlayerName|X|Y|Z|MapIndex
-    /// </summary>
-    private const string MESSAGE_PREFIX = "OPILAND_POS|";
-
     private void OnClientMessageReceived(object sender, ClientMessageReceivedEventArgs e)
     {
-        ProcessPositionMessage(e.Message, null);
+        ProcessMessage(e.Message, null);
     }
 
     private void OnServerMessageReceived(object sender, MessageReceivedEventArgs e)
     {
-        ProcessPositionMessage(e.Message, e.ClientId);
+        ProcessMessage(e.Message, e.ClientId);
     }
 
-    private void ProcessPositionMessage(string message, string clientId)
+    private void ProcessMessage(string messageJson, string clientId)
     {
+        if (string.IsNullOrWhiteSpace(messageJson))
+        {
+            Log.Warn("Received empty Opiland message");
+            return;
+        }
+
         try
         {
-            if (!message.StartsWith(MESSAGE_PREFIX))
-                return;
+            // Log raw message for debugging
+            Log.Trace($"OpilandPlayerTracker processing message: {messageJson}");
 
-            string data = message.Substring(MESSAGE_PREFIX.Length);
-            string[] parts = data.Split('|');
+            OpilandMessage message = OpilandMessage.Deserialize(messageJson);
 
-            if (parts.Length < 5)
+            if (message == null)
             {
-                Log.Warn($"Invalid Opiland position message format: {message}");
+                Log.Warn($"Failed to deserialize Opiland message: {messageJson}");
                 return;
             }
 
-            if (uint.TryParse(parts[0], out uint parsedSerial))
+            if (message is MobilePositionMessage positionMsg)
             {
+                Log.Trace($"Received position message for {positionMsg.Name} ({positionMsg.Serial}) at {positionMsg.X},{positionMsg.Y}");
+
                 var player = new OpilandPlayer
                 {
-                    Serial = parsedSerial,
-                    Name = parts[1],
-                    X = int.Parse(parts[2]),
-                    Y = int.Parse(parts[3]),
-                    Z = int.Parse(parts[4]),
-                    MapIndex = int.Parse(parts[5]),
-                    Hue = int.Parse(parts[6]),
+                    Serial = positionMsg.Serial,
+                    Name = positionMsg.Name,
+                    X = positionMsg.X,
+                    Y = positionMsg.Y,
+                    Z = positionMsg.Z,
+                    MapIndex = positionMsg.MapIndex,
+                    Hue = positionMsg.Hue,
                     LastUpdate = DateTime.UtcNow,
                     ClientId = clientId
                 };
 
                 UpdatePlayer(player);
+                Log.Trace($"Updated player tracker for {player.Name}, total players: {_trackedPlayers.Count}");
             }
             else
             {
-                Log.Warn($"Invalid serial in Opiland position message: {message}");
+                Log.Trace($"Received non-position message type: {message.GetType().Name}");
             }
         }
         catch (Exception ex)
         {
-            Log.Error($"Error processing Opiland position message: {ex.Message}");
+            Log.Error($"Error processing Opiland message: {ex.Message}\nMessage: {messageJson}\nStackTrace: {ex.StackTrace}");
         }
     }
 
@@ -234,14 +237,27 @@ public sealed class OpilandPlayerTracker
     public static string BuildPositionMessage(Mobile mobile)
     {
         var serial = mobile?.Serial ?? 0;
-        var name = string.IsNullOrWhiteSpace(ProfileManager.CurrentProfile.OpilandClientCustomName) ? (mobile?.Name ?? "player") : ProfileManager.CurrentProfile.OpilandClientCustomName;
+        var name = string.IsNullOrWhiteSpace(ProfileManager.CurrentProfile.OpilandClientCustomName) 
+            ? (mobile?.Name ?? "player") 
+            : ProfileManager.CurrentProfile.OpilandClientCustomName;
         var x = mobile?.X ?? 0;
         var y = mobile?.Y ?? 0;
         var z = mobile?.Z ?? 0;
         var mapIndex = World.Instance.MapIndex;
         var hue = ProfileManager.CurrentProfile.OpilandClientCustomNameHue;
 
-        return $"{MESSAGE_PREFIX}{serial}|{name}|{x}|{y}|{z}|{mapIndex}|{hue}";
+        var message = new MobilePositionMessage
+        {
+            Serial = serial,
+            Name = name,
+            X = x,
+            Y = y,
+            Z = z,
+            MapIndex = mapIndex,
+            Hue = hue
+        };
+
+        return message.Serialize();
     }
 
     /// <summary>

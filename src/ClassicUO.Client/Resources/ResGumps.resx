@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -1629,5 +1629,8 @@ Client version: '{0}'</value>
  1639, 1532
  100o25'S,40o04'E
  9 14'N 91 37'W</value>
+  </data>
+  <data name="Opiland" xml:space="preserve">
+    <value>[Opiland]:</value>
   </data>
 </root>

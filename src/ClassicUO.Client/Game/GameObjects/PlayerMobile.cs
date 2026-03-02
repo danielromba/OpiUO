@@ -381,11 +381,15 @@ namespace ClassicUO.Game.GameObjects
             if (OpilandClientManager.Instance.IsConnected || OpilandServerManager.Instance.IsRunning)
             {
                 var positionMessage = OpilandPlayerTracker.BuildPositionMessage(this);
-                OpilandClientManager.Instance.SendMessageAsync(positionMessage);
-
-                if (OpilandServerManager.Instance.IsRunning)
+                if (positionMessage != null)
                 {
-                    OpilandServerManager.Instance.BroadcastMessageAsync(positionMessage);
+                    // Fire and forget - don't await
+                    _ = OpilandClientManager.Instance.SendMessageAsync(positionMessage);
+
+                    if (OpilandServerManager.Instance.IsRunning)
+                    {
+                        _ = OpilandServerManager.Instance.BroadcastMessageAsync(positionMessage);
+                    }
                 }
 
                 _lastOpilandBroadcast = DateTime.UtcNow;

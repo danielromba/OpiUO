@@ -596,7 +596,7 @@ namespace ClassicUO.Configuration
                 MessageType.Encoded, MessageType.Focus, MessageType.Guild,
                 MessageType.Label, MessageType.Limit3Spell, MessageType.Party,
                 MessageType.Regular, MessageType.Spell, MessageType.System,
-                MessageType.Whisper, MessageType.Yell, MessageType.ChatSystem }
+                MessageType.Whisper, MessageType.Yell, MessageType.ChatSystem, MessageType.Opiland }
             },
             { "Chat", new MessageType[] {
                 MessageType.Regular,
@@ -606,7 +606,8 @@ namespace ClassicUO.Configuration
                 MessageType.Party,
                 MessageType.Whisper,
                 MessageType.Yell,
-                MessageType.ChatSystem }
+                MessageType.ChatSystem,
+                MessageType.Opiland }
             },
             {
                 "Guild|Party", new MessageType[] {
@@ -669,7 +670,7 @@ namespace ClassicUO.Configuration
         public bool CounterGumpLocked { get; set; }
         public bool NearbyLootConcealsContainerOnOpen { get; set; } = true;
         public bool SpellBar_ShowHotkeys { get; set; } = true;
-        public byte ForcedHouseTransparency { get;  set; } = 40;
+        public byte ForcedHouseTransparency { get; set; } = 40;
         public ushort ForcedTransparencyHouseTileHue { get; set; } = 0;
         public bool ForceHouseTransparency { get; set; }
         public ulong HideHudGumpFlags { get; set; }
@@ -701,7 +702,7 @@ namespace ClassicUO.Configuration
             set
             {
                 if (field != value)
-                    _ =Client.Settings.SetAsync(SettingsScope.Global, Constants.SqlSettings.DISABLE_WEATHER, value);
+                    _ = Client.Settings.SetAsync(SettingsScope.Global, Constants.SqlSettings.DISABLE_WEATHER, value);
 
                 field = value;
             }
@@ -727,7 +728,7 @@ namespace ClassicUO.Configuration
             set
             {
                 if (field != value)
-                    _ =Client.Settings.SetAsync(SettingsScope.Char, Constants.SqlSettings.AUTO_UNEQUIP_FOR_ACTIONS, value);
+                    _ = Client.Settings.SetAsync(SettingsScope.Char, Constants.SqlSettings.AUTO_UNEQUIP_FOR_ACTIONS, value);
 
                 field = value;
             }
@@ -834,7 +835,7 @@ namespace ClassicUO.Configuration
                 if (field != value)
                     _ = Client.Settings.SetAsync(SettingsScope.Global, Constants.SqlSettings.IRC_AUTO_CONNECT, value);
 
-                if(value && !TazUOChatManager.Instance.IsConnected)
+                if (value && !TazUOChatManager.Instance.IsConnected)
                     TazUOChatManager.Instance.Init();
 
                 field = value;
@@ -1047,7 +1048,7 @@ namespace ClassicUO.Configuration
                         {
                             foreach (ImGuiWindow window in windows)
                             {
-                                if(window == null || !window.IsOpen) continue;
+                                if (window == null || !window.IsOpen) continue;
 
                                 try
                                 {

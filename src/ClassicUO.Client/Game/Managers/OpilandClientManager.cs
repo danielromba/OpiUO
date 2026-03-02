@@ -27,6 +27,7 @@ namespace ClassicUO.Game.Managers
 
         public event EventHandler<ClientStateChangedEventArgs> StateChanged;
         public event EventHandler<ClientMessageReceivedEventArgs> MessageReceived;
+        public event EventHandler<ChatMessageReceivedEventArgs> ChatMessageReceived;
 
         private OpilandClientManager()
         {
@@ -240,6 +241,21 @@ namespace ClassicUO.Game.Managers
                         MainThreadQueue.EnqueueAction(() =>
                         {
                             MessageReceived?.Invoke(this, new ClientMessageReceivedEventArgs(message));
+
+                            // Parse and dispatch specific message types
+                            try
+                            {
+                                OpilandMessage opilandMsg = OpilandMessage.Deserialize(message);
+
+                                if (opilandMsg is ChatMessage chatMsg)
+                                {
+                                    ChatMessageReceived?.Invoke(this, new ChatMessageReceivedEventArgs(chatMsg));
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Warn($"Failed to parse Opiland message: {ex.Message}");
+                            }
                         });
                     }
                 }
@@ -300,6 +316,25 @@ namespace ClassicUO.Game.Managers
         {
             // Fire and forget - for synchronous contexts
             _ = Task.Run(() => SendMessageAsync(message));
+        }
+
+        /// <summary>
+        /// Send a chat message to the server
+        /// </summary>
+        public void SendChatMessage(string text, string sender = null, ushort hue = 0)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+
+            var chatMessage = new ChatMessage
+            {
+                Serial = World.Instance.Player?.Serial ?? 0,
+                Sender = sender ?? ProfileManager.CurrentProfile?.OpilandClientCustomName ?? "Unknown",
+                Text = text,
+                Hue = hue
+            };
+
+            SendMessage(chatMessage.Serialize());
         }
 
         public void Dispose()

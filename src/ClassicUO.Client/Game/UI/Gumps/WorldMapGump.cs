@@ -2136,6 +2136,8 @@ public class WorldMapGump : ResizableGump
         //    }
         //}
 
+        // Draw Opiland connection indicator
+        DrawOpilandConnectionIndicator(batcher, gX, gY);
 
         return base.Draw(batcher, x, y);
     }
@@ -3447,6 +3449,49 @@ public class WorldMapGump : ResizableGump
             ),
             hueVector
         );
+    }
+
+    private void DrawOpilandConnectionIndicator(UltimaBatcher2D batcher, int gX, int gY)
+    {
+        Color? indicatorColor = null;
+
+        // Check if client is connected (green)
+        if (OpilandClientManager.Instance.IsConnected)
+        {
+            indicatorColor = Color.LimeGreen;
+        }
+        // Check if server is running (blue)
+        else if (OpilandServerManager.Instance.IsRunning)
+        {
+            indicatorColor = Color.DodgerBlue;
+        }
+        else
+        {
+            //indicatorColor = Color.DarkRed;
+        }
+
+        // Only draw if we have a connection
+        if (indicatorColor.HasValue)
+        {
+            const int INDICATOR_SIZE = 8;
+            const int PADDING = 20;
+
+            Vector3 hueVector = ShaderHueTranslator.GetHueVector(0);
+
+            // Draw a small circle indicator in the top-left corner
+            batcher.Draw
+            (
+                SolidColorTextureCache.GetTexture(indicatorColor.Value),
+                new Rectangle
+                (
+                    gX + Width - PADDING,
+                    gY + Height - PADDING,
+                    INDICATOR_SIZE,
+                    INDICATOR_SIZE
+                ),
+                hueVector
+            );
+        }
     }
 
     #endregion

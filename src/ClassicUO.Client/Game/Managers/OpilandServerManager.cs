@@ -36,6 +36,7 @@ namespace ClassicUO.Game.Managers
         public event EventHandler<ClientConnectedEventArgs> ClientConnected;
         public event EventHandler<ClientDisconnectedEventArgs> ClientDisconnected;
         public event EventHandler<MessageReceivedEventArgs> MessageReceived;
+        public event EventHandler<ChatMessageReceivedEventArgs> ChatMessageReceived;
 
         private OpilandServerManager()
         {
@@ -327,8 +328,38 @@ namespace ClassicUO.Game.Managers
                             EventSink.InvokeOnOpilandMessage(this, new OpilandMessageEventArgs(clientId, message));
                         });
 
-                        // Echo message back for testing
-                        //await SendMessageAsync(clientId, $"Echo: {message}");
+                        // Parse and handle specific message types
+                        try
+                        {
+                            OpilandMessage opilandMsg = OpilandMessage.Deserialize(message);
+
+                            if (opilandMsg is ChatMessage chatMsg)
+                            {
+                                // Broadcast chat message to all clients except the sender
+                                _ = Task.Run(async () =>
+                                {
+                                    await BroadcastMessageExceptAsync(clientId, message);
+
+                                    // Also fire the event on main thread
+                                    MainThreadQueue.EnqueueAction(() =>
+                                    {
+                                        ChatMessageReceived?.Invoke(this, new ChatMessageReceivedEventArgs(clientId, chatMsg));
+                                    });
+                                });
+                            }
+                            else if (opilandMsg is MobilePositionMessage positionMessage)
+                            {
+                                // Broadcast chat message to all clients except the sender
+                                _ = Task.Run(async () =>
+                                {
+                                    await BroadcastMessageExceptAsync(clientId, message);
+                                });
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warn($"Failed to parse Opiland message from {clientId}: {ex.Message}");
+                        }
                     }
                 }
             }
@@ -379,6 +410,24 @@ namespace ClassicUO.Game.Managers
             foreach (var clientId in _clients.Keys.ToList())
             {
                 tasks.Add(SendMessageAsync(clientId, message));
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
+        /// <summary>
+        /// Broadcast message to all clients except the specified one
+        /// </summary>
+        public async Task BroadcastMessageExceptAsync(string excludeClientId, string message)
+        {
+            var tasks = new List<Task>();
+
+            foreach (var clientId in _clients.Keys.ToList())
+            {
+                if (clientId != excludeClientId)
+                {
+                    tasks.Add(SendMessageAsync(clientId, message));
+                }
             }
 
             await Task.WhenAll(tasks);

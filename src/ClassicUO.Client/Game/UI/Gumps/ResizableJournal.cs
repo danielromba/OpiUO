@@ -1,4 +1,4 @@
-﻿using ClassicUO.Configuration;
+using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
@@ -395,7 +395,10 @@ namespace ClassicUO.Game.UI.Gumps
             }
             else
             {
-                text = $"{journalEntry.Name}: {journalEntry.Text}";
+                if (journalEntry.MessageType == MessageType.Opiland)
+                    text = $"{MessageType.Opiland}: {journalEntry.Text}";
+                else
+                    text = $"{journalEntry.Name}: {journalEntry.Text}";
             }
             _journalArea.AddEntry(text, journalEntry.Hue, journalEntry.Time, journalEntry.TextType, journalEntry.MessageType);
         }
@@ -592,15 +595,31 @@ namespace ClassicUO.Game.UI.Gumps
                     {
                         MessageType currentfilter = _resizableJournal._currentFilter[i];
 
-                        if (messageType == MessageType.ChatSystem && currentfilter == MessageType.ChatSystem)
-                            return true;
+                        // Handle ChatSystem messages specially - ONLY show with ChatSystem filter
+                        if (messageType == MessageType.ChatSystem)
+                        {
+                            if (currentfilter == MessageType.ChatSystem)
+                                return true;
+                            continue; // Skip to next filter if not ChatSystem
+                        }
 
+                        // Handle Opiland messages specially - ONLY show with Opiland filter
+                        if (messageType == MessageType.Opiland)
+                        {
+                            if (currentfilter == MessageType.Opiland)
+                                return true;
+                            continue; // Skip to next filter if not Opiland
+                        }
+
+                        // Handle System messages (but exclude ChatSystem and Opiland which are handled above)
                         if (type == TextType.SYSTEM && currentfilter == MessageType.System)
                             return true;
 
+                        // Skip SYSTEM TextType messages if filter is not System (unless already handled above)
                         if (type == TextType.SYSTEM && currentfilter != MessageType.System)
                             continue;
 
+                        // Default matching
                         if (currentfilter == messageType)
                             return true;
                     }
@@ -717,6 +736,9 @@ namespace ClassicUO.Game.UI.Gumps
                                 break;
                             case MessageType.Discord:
                                 entryName = "Discord";
+                                break;
+                            case MessageType.Opiland:
+                                entryName = "Opiland";
                                 break;
                         }
 
