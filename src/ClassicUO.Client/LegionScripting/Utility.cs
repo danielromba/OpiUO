@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -118,6 +118,9 @@ internal static class Utility
     public static Layer GetItemLayer(string name)
     {
         Layer finalLayer = Layer.Invalid;
+
+        if (name != null)
+            name = name.ToLower();
 
         switch (name)
         {

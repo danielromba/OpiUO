@@ -345,6 +345,10 @@ namespace ClassicUO.Configuration
         public string WorldMapHiddenZoneFiles { get; set; } = string.Empty;
         public bool WorldMapShowGridIfZoomed { get; set; } = true;
         public bool WorldMapAllowPositionalTarget { get; set; } = true;
+        public bool WorldMapShowOpilandPlayers { get; set; } = true;
+        public bool WorldMapShowOpilandPlayerNames { get; set; } = true;
+        public bool WorldMapShowOpilandPlayerBars { get; set; } = true;
+        public bool ShowOpilandTileHighlights { get; set; } = true;
 
         [JsonIgnore]
         public int WebMapServerPort
@@ -675,6 +679,20 @@ namespace ClassicUO.Configuration
         public bool DisableHotkeys { get; set; }
         public bool DisableDismountInWarMode { get; set; }
         public bool EnableASyncMapLoading { get; set; } = true;
+
+        // Opiland client
+        public bool OpilandClientAutostart { get; set; } = false;
+        public string OpilandClientIp { get; set; } = "127.0.0.1";
+        public string OpilandClientPort { get; set; } = "5055";
+        public string OpilandClientPassword { get; set; } = "";
+        public string OpilandClientCustomName { get; set; } = "";
+        public int OpilandClientCustomNameHue { get; set; } = 90; // 0x005A
+
+        // Opiland server
+        public bool OpilandServerAutostart { get; set; } = false;
+        public string OpilandServerIp { get; set; } = "127.0.0.1";
+        public string OpilandServerPort { get; set; } = "5055";
+        public string OpilandServerPassword { get; set; } = "";
 
         [JsonIgnore]
         public bool DisableWeather

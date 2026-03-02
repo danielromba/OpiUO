@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using ClassicUO.Common;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
@@ -9,6 +9,19 @@ namespace ClassicUO.Game.Managers;
 
 public class EventSink
 {
+    [ApiEvent]
+    public static event EventHandler<OpilandMessageEventArgs> OnOpilandMessage;
+
+    public static void InvokeOnOpilandMessage(object sender, OpilandMessageEventArgs args) => OnOpilandMessage?.Invoke(sender, args);
+
+    /// <summary>
+    /// Invoked when animation is set on mobile
+    /// </summary>
+    [ApiEvent]
+    public static event EventHandler<CharacterAnimationEventArgs> OnMobileAnimation;
+
+    public static void InvokeOnMobileAnimation(object sender, CharacterAnimationEventArgs args) => OnMobileAnimation?.Invoke(sender, args);
+
     /// <summary>
     /// Invoked when the player is created
     /// </summary>
