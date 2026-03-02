@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: BSD-2-Clause
+// SPDX-License-Identifier: BSD-2-Clause
 
 using System.IO;
 using System.Text.Json;
@@ -87,6 +87,8 @@ namespace ClassicUO.Configuration
         [JsonPropertyName("encryption")] public byte Encryption { get; set; }
 
         [JsonPropertyName("plugins")] public string[] Plugins { get; set; } = { "" };
+
+        [JsonPropertyName("endor")] public bool Endor { get; set; }
 
         public static string GetSettingsFilepath()
         {

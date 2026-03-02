@@ -131,7 +131,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Examples\" />
+    <Compile Remove="Examples\**" />
+    <DocSourceFiles Remove="Examples\**" />
+    <EmbeddedResource Remove="Examples\**" />
+    <None Remove="Examples\**" />
   </ItemGroup>
 
   <PropertyGroup>

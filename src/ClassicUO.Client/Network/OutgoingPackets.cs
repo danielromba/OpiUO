@@ -490,13 +490,37 @@ namespace ClassicUO.Network
                 writer.WriteZero(2);
             }
 
-            writer.WriteUInt32BE(0xEDEDEDED);
-            writer.WriteASCII(name, 30);
-            writer.WriteZero(2);
-            writer.WriteUInt32BE((uint)Client.Game.UO.Protocol);
-            writer.WriteZero(24);
-            writer.WriteUInt32BE(index);
-            writer.WriteUInt32BE(ipclient);
+            writer.WriteUInt32BE(0xEDEDEDED); // 4
+            writer.WriteASCII(name, 30); // 30
+            writer.WriteZero(2); // 2
+
+            if (Settings.GlobalSettings.Endor)
+            {
+                // Bytes 39-42 (instead of Protocol)
+                writer.WriteUInt8(0x00);
+                writer.WriteUInt8(0x00);
+                writer.WriteUInt8(0x00);
+                writer.WriteUInt8(0x3F);
+                writer.WriteUInt8(0x01);
+                writer.WriteUInt8(0x2B);
+
+                // Bytes 43-46
+                writer.WriteUInt8(0x57);
+                writer.WriteUInt8(0xCA);
+                writer.WriteUInt8(0xF0);
+                writer.WriteUInt8(0x58);
+
+                // Remaining 18 bytes of zeros (47-66)
+                writer.WriteZero(18);
+            }
+            else
+            {
+                writer.WriteUInt32BE((uint)Client.Game.UO.Protocol); // 4
+                writer.WriteZero(24); // 24
+            }
+
+            writer.WriteUInt32BE(index); // 4
+            writer.WriteUInt32BE(ipclient); // 4
 
             if (length < 0)
             {

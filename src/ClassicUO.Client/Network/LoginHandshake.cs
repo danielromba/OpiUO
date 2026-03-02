@@ -1,13 +1,17 @@
-using System;
-using System.Net;
-using System.Net.Sockets;
-using System.Numerics;
+using ClassicUO.Configuration;
 using ClassicUO.Game.Scenes;
 using ClassicUO.IO;
 using ClassicUO.Network.Encryption;
 using ClassicUO.Resources;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
+using System;
+using System.Collections.Generic;
+using System.Net;
+using System.Net.Sockets;
+using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ClassicUO.Network
 {
@@ -84,6 +88,12 @@ namespace ClassicUO.Network
             AsyncNetClient.Socket = new AsyncNetClient();
             AsyncNetClient.Socket.Connected += OnNetClientConnected;
             AsyncNetClient.Socket.Disconnected += OnNetClientDisconnected;
+
+            if (Settings.GlobalSettings.Endor)
+            {
+                EndorProbes();
+            }
+
             System.Threading.Tasks.Task<bool> status = AsyncNetClient.Socket.Connect(ip, port);
         }
 
@@ -534,6 +544,51 @@ namespace ClassicUO.Network
             DisposeAllServerEntries();
             Characters = null;
             Cities = null;
+        }
+
+        private void EndorProbes()
+        {
+            // Define port mappings: Local Port -> Remote Port
+            Dictionary<int, int> PortMappings = new()
+            {
+                { 8666, 8666 },
+                { 10475, 10475 },
+                { 9000, 9000 },
+                { 15834, 15834 },
+                { 915, 915 },
+                { 13245, 13245 },
+                { 6000, 6000 },
+                { 11285, 11285 }
+            };
+
+            foreach (var port in PortMappings)
+            {
+                TryConnect(IP, port.Value, 400).GetAwaiter().GetResult();
+            }
+        }
+
+        private async Task<bool> TryConnect(string host, int port, int timeoutMs)
+        {
+            using var client = new TcpClient();
+            using var cts = new CancellationTokenSource(timeoutMs);
+
+            try
+            {
+                await client.ConnectAsync(host, port, cts.Token);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                return false; // timeout
+            }
+            catch (SocketException)
+            {
+                return false; // connection refused/filtered
+            }
+            catch (Exception)
+            {
+                return false; // other errors
+            }
         }
     }
 

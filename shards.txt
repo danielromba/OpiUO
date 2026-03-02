@@ -1,0 +1,11 @@
+Moria Reborn
+  "ip": "46.36.38.238",
+  "port": 2593,
+  "ultimaonlinedirectory": "F:\\Games\\Ultima Online reborn alfa",
+  v7.0.59.4
+
+Endor
+  89.187.144.43
+  5000
+  F:\Games\EndorRevived2\Client\Muls
+  v7.0.33.1

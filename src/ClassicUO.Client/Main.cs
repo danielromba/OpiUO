@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: BSD-2-Clause
+// SPDX-License-Identifier: BSD-2-Clause
 
 using ClassicUO.Configuration;
 using ClassicUO.Game;
@@ -290,6 +290,10 @@ namespace ClassicUO
                     case "settings":
                         Settings.CustomSettingsFilepath = value;
 
+                        break;
+
+                    case "endor":
+                        Settings.GlobalSettings.Endor = true;
                         break;
 
                     case "highdpi":

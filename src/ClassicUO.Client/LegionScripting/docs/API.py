@@ -279,6 +279,15 @@ class ApiPoint3D:
     def ToString(self) -> "str":
         pass
 
+class ApiPoint2D:
+    ""
+    X: int = None
+    Y: int = None
+    IsEmpty: bool = None
+
+    def ToString(self) -> "str":
+        pass
+
 class ApiSoundEntry:
     ""
     ID: int = None
@@ -1121,6 +1130,11 @@ class PersistentVar:
     Server = 3
     Global = 4
 
+class WalkStyle:
+    Auto = 0
+    WalkOnly = 1
+    RunOnly = 2
+
 def ProcessCallbacks() -> None:
     """
      Use this when you need to wait for players to click buttons.
@@ -1135,6 +1149,31 @@ def ProcessCallbacks() -> None:
     pass
 
 def Dispose() -> None:
+    pass
+
+def GetLastAttackSerial() -> "int":
+    pass
+
+def HasDirectPathTo(obj: "ApiMobile") -> "bool":
+    """
+     Check if there is a direct, unobstructed path to a mobile.
+     This checks if any coordinate along the line of sight is blocked by impassable terrain (water) or statics (trees, walls, etc.).
+     Example:
+     ```py
+     mob = API.FindMobile(0x12345678)
+     if mob and API.HasDirectPathTo(mob):
+       API.SysMsg("Clear line of sight to target!")
+       API.CastSpell("Lightning")
+       API.WaitForTarget()
+       API.Target(mob.Serial)
+     else:
+       API.SysMsg("Path is blocked!")
+     ```
+    
+    """
+    pass
+
+def GetEntityScreenPosition(serial: "int") -> "Any":
     pass
 
 def OnHotKey(key: "str", callback: "Any" = None) -> None:
@@ -1850,7 +1889,7 @@ def OnIgnoreList(serial: "int") -> "bool":
     """
     pass
 
-def Pathfind(x: "int", y: "int", z: "int" = 1337, distance: "int" = 1, wait: "bool" = False, timeout: "int" = 10) -> "bool":
+def Pathfind(x: "int", y: "int", z: "int" = 1337, distance: "int" = 1, walkStyle: "WalkStyle" = WalkStyle.Auto, wait: "bool" = False, timeout: "float" = 10000) -> "bool":
     """
      Attempt to pathfind to a location.  This will fail with large distances.
      Example:
@@ -2446,6 +2485,21 @@ def InJournal(msg: "str", clearMatches: "bool" = False) -> "bool":
     """
     pass
 
+def WaitJournal(msg: "str", timeout: "float" = 5000) -> "bool":
+    """
+     Wait for a message to appear in the journal with a timeout.
+     This does NOT clear the matched message from the journal.
+     Example:
+     ```py
+     if API.WaitJournal("You have been healed", 5000):
+       API.SysMsg("Healing complete!")
+     else:
+       API.SysMsg("Healing timeout!")
+     ```
+    
+    """
+    pass
+
 def ClearSoundLog() -> None:
     """
      Clear your sound log (This is specific for each script).
@@ -2688,6 +2742,66 @@ def GetTile(x: "int", y: "int") -> "ApiGameObject":
     """
     pass
 
+def IsWalkable(x: "int", y: "int") -> "bool":
+    """
+     Check if a position is walkable/passable.
+     This takes into account all tiles, statics, items, and multis at the location,
+     properly determining which surface is on top using Z-ordering.
+     Example:
+     ```py
+     if API.IsWalkable(1414, 1515):
+         API.SysMsg("Position is walkable!")
+     else:
+         API.SysMsg("Position is blocked!")
+     ```
+    
+    """
+    pass
+
+def IsTileWalkable(x: "int", y: "int", z: "int") -> "bool":
+    """
+     Check if a tile at a specific position and Z level is walkable.
+     This is more precise than IsWalkable as it checks from a specific Z coordinate.
+     Useful when you need to check walkability at different elevations.
+     Example:
+     ```py
+     # Check if position is walkable from player's Z level
+     z = API.Player.Z
+     if API.IsTileWalkable(1414, 1515, z):
+         API.SysMsg("Can walk there from current elevation!")
+     ```
+    
+    """
+    pass
+
+def CheckAreaWalkability(x1: "int", y1: "int", x2: "int", y2: "int", z: "int" = 1337) -> "list[Any]":
+    """
+     Efficiently check walkability for all tiles in a rectangular area.
+     This is highly optimized for performance and calculates from the player's current Z level.
+     Returns a list of results containing X, Y coordinates and walkability status.
+     Example:
+     ```py
+     # Check 10x10 area around player
+     player_x = API.Player.X
+     player_y = API.Player.Y
+     results = API.CheckAreaWalkability(player_x - 5, player_y - 5, player_x + 5, player_y + 5)
+    
+     walkable_count = 0
+     for result in results:
+         if result.IsWalkable:
+             walkable_count += 1
+             # Optionally mark walkable tiles
+             # API.MarkTile(result.X, result.Y, 66)
+    
+     API.SysMsg(f"Found {walkable_count} walkable tiles in area")
+    
+     # Check from a specific Z level (e.g., for bridges)
+     results_at_z10 = API.CheckAreaWalkability(x1, y1, x2, y2, z=10)
+     ```
+    
+    """
+    pass
+
 def GetStaticsAt(x: "int", y: "int") -> "list[ApiStatic]":
     """
      Gets all static objects at a specific position (x, y coordinates).
@@ -2714,6 +2828,14 @@ def GetStaticsInArea(x1: "int", y1: "int", x2: "int", y2: "int") -> "list[ApiSta
          if s.IsVegetation:
              API.SysMsg(f"Vegetation Graphic: {s.Graphic} at {s.X}, {s.Y}")
      ```
+    
+    """
+    pass
+
+def GetTilesInArea(x1: "int", y1: "int", x2: "int", y2: "int") -> "list[ApiGameObject]":
+    """
+     Gets all tiles objects within a rectangular area defined by coordinates.
+     This includes trees, vegetation, buildings, and other non-movable scenery.
     
     """
     pass
@@ -2938,6 +3060,23 @@ def AddControlOnDisposed(control: "ApiUiBaseControl", onDispose: "Any") -> "ApiU
     """
     pass
 
+def CheckButtonsSelected(buttons: "list[ApiUiNiceButton]") -> "Any":
+    """
+     Efficiently check if multiple buttons are selected in a single batch operation.
+     This is much faster than checking IsSelected individually in a loop.
+     Example:
+     ```py
+     buttons = [button1, button2, button3, button4]
+     selected_states = API.CheckButtonsSelected(buttons)
+    
+     for i, button in enumerate(buttons):
+         if selected_states[i]:
+             API.SysMsg(f"Button {i} is selected!")
+     ```
+    
+    """
+    pass
+
 def GetSkill(skill: "str") -> "Skill":
     """
      Get a skill from the player. See the Skill class for what properties are available: https://github.com/PlayTazUO/TazUO/blob/main/src/ClassicUO.Client/Game/Data/Skill.cs
@@ -2981,6 +3120,9 @@ def PlayScript(scriptName: "str") -> None:
      Play a legion script.
     
     """
+    pass
+
+def IsScriptRunning(scriptName: "str") -> "bool":
     pass
 
 def StopScript(scriptName: "str") -> None:
@@ -3090,6 +3232,13 @@ def MarkTile(x: "int", y: "int", hue: "int", map: "int" = -1) -> None:
     """
     pass
 
+def ClearMarkedTiles(map: "int" = -1) -> None:
+    """
+     Mark a tile with a specific hue.
+    
+    """
+    pass
+
 def RemoveMarkedTile(x: "int", y: "int", map: "int" = -1) -> None:
     """
      Remove a marked tile. See MarkTile for more info.
@@ -3107,4 +3256,340 @@ def TrackingArrow(x: "int", y: "int", identifier: "int" = 1337) -> None:
     
     """
     pass
+
+def OpilandStartServer(address: "str" = None, port: "int" = 0) -> "bool":
+    """
+     Start the Opiland WebSocket server.
+     Uses profile settings as defaults if parameters are not provided.
+     Example:
+     ```py
+     # Use profile defaults
+     if API.OpilandStartServer():
+         API.SysMsg("Server started")
+    
+     # Use specific address and port
+     if API.OpilandStartServer("127.0.0.1", 8080):
+         API.SysMsg("Server started on 127.0.0.1:8080")
+     ```
+    
+    """
+    pass
+
+def OpilandStopServer() -> None:
+    """
+     Stop the Opiland WebSocket server.
+     Example:
+     ```py
+     API.OpilandStopServer()
+     API.SysMsg("Server stopped")
+     ```
+    
+    """
+    pass
+
+def OpilandConnectClient(address: "str" = None, port: "int" = 0, password: "str" = "") -> "bool":
+    """
+     Connect the Opiland WebSocket client to a server.
+     Uses profile settings as defaults if parameters are not provided.
+     Example:
+     ```py
+     # Use profile defaults
+     if API.OpilandConnectClient():
+         API.SysMsg("Connected!")
+    
+     # Use specific address and port
+     if API.OpilandConnectClient("127.0.0.1", 8080, "mypassword"):
+         API.SysMsg("Connected to server!")
+     ```
+    
+    """
+    pass
+
+def OpilandDisconnectClient() -> None:
+    """
+     Disconnect the Opiland WebSocket client.
+     Example:
+     ```py
+     API.OpilandDisconnectClient()
+     API.SysMsg("Disconnected from server")
+     ```
+    
+    """
+    pass
+
+def OpilandClientSendMessage(message: "str") -> None:
+    """
+     Send a message from the Opiland client to the connected server.
+     Example:
+     ```py
+     if API.OpilandClientIsConnected():
+         API.OpilandClientSendMessage("Hello server!")
+     ```
+    
+    """
+    pass
+
+def OpilandServerSendMessage(clientId: "str", message: "str") -> None:
+    """
+     Send a message from the Opiland server to a specific client.
+     Example:
+     ```py
+     # Get client ID from server event
+     def on_client_connected(client_id, address):
+         API.OpilandServerSendMessage(client_id, "Welcome!")
+     ```
+    
+    """
+    pass
+
+def OpilandServerBroadcast(message: "str") -> None:
+    """
+     Broadcast a message from the Opiland server to all connected clients.
+     Example:
+     ```py
+     if API.OpilandServerIsRunning():
+         API.OpilandServerBroadcast("Server announcement: Maintenance in 5 minutes!")
+     ```
+    
+    """
+    pass
+
+def OpilandServerIsRunning() -> "bool":
+    """
+     Check if the Opiland WebSocket server is currently running.
+     Example:
+     ```py
+     if API.OpilandServerIsRunning():
+         API.SysMsg("Server is running")
+         count = API.OpilandServerClientCount()
+         API.SysMsg(f"Connected clients: {count}")
+     ```
+    
+    """
+    pass
+
+def OpilandClientIsConnected() -> "bool":
+    """
+     Check if the Opiland WebSocket client is currently connected to a server.
+     Example:
+     ```py
+     if API.OpilandClientIsConnected():
+         API.SysMsg("Connected to server")
+         API.OpilandClientSendMessage("Hello!")
+     ```
+    
+    """
+    pass
+
+def OpilandServerClientCount() -> "int":
+    """
+     Get the number of clients currently connected to the Opiland server.
+     Example:
+     ```py
+     if API.OpilandServerIsRunning():
+         count = API.OpilandServerClientCount()
+         API.SysMsg(f"Server has {count} connected clients")
+     ```
+    
+    """
+    pass
+
+def OpilandServerGetInfo() -> "Any":
+    """
+     Get the current Opiland server connection information.
+     Example:
+     ```py
+     if API.OpilandServerIsRunning():
+         info = API.OpilandServerGetInfo()
+         API.SysMsg(f"Server running on {info.Address}:{info.Port}")
+     ```
+    
+    """
+    pass
+
+def OpilandClientGetInfo() -> "Any":
+    """
+     Get the current Opiland client connection information.
+     Example:
+     ```py
+     if API.OpilandClientIsConnected():
+         info = API.OpilandClientGetInfo()
+         API.SysMsg(f"Connected to {info.Address}:{info.Port}")
+     ```
+    
+    """
+    pass
+
+class OpilandConnectionInfo:
+    ""
+    Address: str = None
+    Port: int = None
+    IsActive: bool = None
+
+class EventSinkApiDeclaration:
+    ""
+
+    def OnOpilandMessage(self, callback: "Any") -> None:
+        pass
+
+    def OnMobileAnimation(self, callback: "Any") -> None:
+        """
+         Invoked when animation is set on mobile
+        
+        """
+        pass
+
+    def OnItemCreated(self, callback: "Any") -> None:
+        """
+         Invoked when an item is added to the client.
+         The event's argument is the ApiItem.
+        
+        """
+        pass
+
+    def OnItemUpdated(self, callback: "Any") -> None:
+        """
+         Invoked when an item is already in the client but has been updated.
+         The event's argument is the ApiItem.
+        
+        """
+        pass
+
+    def OnCorpseCreated(self, callback: "Any") -> None:
+        """
+         Invoked when a corpse is added to the client. The event's 'sender' is the corpse Item
+        
+        """
+        pass
+
+    def OnConnected(self, callback: "Any") -> None:
+        """
+         Invoked when the player is connected to a server
+        
+        """
+        pass
+
+    def OnDisconnected(self, callback: "Any") -> None:
+        """
+         Invoked when the player is disconnected from the server
+        
+        """
+        pass
+
+    def MessageReceived(self, callback: "Any") -> None:
+        """
+         Invoked when any message is received from the server after client processing
+        
+        """
+        pass
+
+    def RawMessageReceived(self, callback: "Any") -> None:
+        """
+         Invoked when any message is received from the server *before* client processing
+        
+        """
+        pass
+
+    def ClilocMessageReceived(self, callback: "Any") -> None:
+        """
+          Not currently used. May be removed later or put into use, not sure right now
+        
+        """
+        pass
+
+    def JournalEntryAdded(self, callback: "Any") -> None:
+        """
+          Invoked when a message is added to the journal
+        
+        """
+        pass
+
+    def SoundPlayed(self, callback: "Any") -> None:
+        """
+         Invoked when the server requests that a sound be played
+        
+        """
+        pass
+
+    def OPLOnReceive(self, callback: "Any") -> None:
+        """
+         Invoked when an object's property list data (Tooltip text for items) is received
+        
+        """
+        pass
+
+    def OnBuffAdded(self, callback: "Any") -> None:
+        """
+         Invoked when a buff is "added" to a player.
+         The event's argument is the ApiBuff.
+        
+        """
+        pass
+
+    def OnBuffRemoved(self, callback: "Any") -> None:
+        """
+         Invoked when a buff is "removed" to a player (Called before removal)
+         The event's argument is the ApiBuff.
+        
+        """
+        pass
+
+    def OnPositionChanged(self, callback: "Any") -> None:
+        """
+         Invoked when the player's position is changed
+        
+        """
+        pass
+
+    def OnEntityDamage(self, callback: "Any") -> None:
+        """
+         Invoked when any entity in the game receives damage, not necessarily the player.
+        
+        """
+        pass
+
+    def OnOpenContainer(self, callback: "Any") -> None:
+        """
+         Invoked when a container is opened.
+         The event's 'sender' is the Item, the event's argument is the item's serial
+        
+        """
+        pass
+
+    def OnPlayerDeath(self, callback: "Any") -> None:
+        """
+         Invoked when the player receives a death packet from the server
+        
+        """
+        pass
+
+    def OnPathFinding(self, callback: "Any") -> None:
+        """
+          Invoked when the player or server tells the client to path find
+          Vector is X, Y, Z, and Distance
+        
+        """
+        pass
+
+    def OnSetWeather(self, callback: "Any") -> None:
+        """
+         Invoked when the server asks the client to generate some weather
+        
+        """
+        pass
+
+    def OnPlayerHitsChanged(self, callback: "Any") -> None:
+        """
+         Invoked after the player's hit points have changed.
+        
+        """
+        pass
+
+    def ApiMobileCreated(self, callback: "Any") -> None:
+        """
+         Invoked when a mobile is created.
+         The event's sender is null and the argument is an ApiMobile.
+        
+        """
+        pass
 
