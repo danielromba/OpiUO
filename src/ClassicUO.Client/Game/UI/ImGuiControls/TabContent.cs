@@ -31,7 +31,7 @@ namespace ClassicUO.Game.UI.ImGuiControls
         /// </summary>
         protected void SetTooltip(string tooltip)
         {
-            if (ImGui.IsItemHovered())
+            if (ImGui.IsItemHovered() && !string.IsNullOrEmpty(tooltip))
                 ImGui.SetTooltip(tooltip);
         }
 

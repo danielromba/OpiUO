@@ -25,6 +25,10 @@ description:  Represents a Python-accessible item in the game world.  Inherits e
 
 **Type:** `uint`
 
+### `TestName`
+
+**Type:** `string`
+
 ### `RootEntity`
 
 **Type:** `ApiEntity`

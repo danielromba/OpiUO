@@ -425,7 +425,7 @@ public class WorldMapGump : ResizableGump
 
         _options["reset_map_cache"] = new ContextMenuItemEntry(ResGumps.ResetMapsCache, () =>
         {
-            Directory.GetFiles(_mapsCachePath, "*.png").ForEach(s => File.Delete(s));
+            try { Directory.GetFiles(_mapsCachePath, "*.png").ForEach(s => File.Delete(s)); } catch { }
         }, false);
     }
 

@@ -97,6 +97,10 @@ description:  Represents a Python-accessible mobile (NPC, creature, or player ch
 
 **Type:** `bool`
 
+### `Direction`
+
+**Type:** `byte`
+
 ### `Notoriety`
 
 **Type:** `Notoriety`

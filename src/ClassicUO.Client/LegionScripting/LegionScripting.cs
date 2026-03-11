@@ -715,7 +715,7 @@ namespace ClassicUO.LegionScripting
                         MainThreadQueue.EnqueueAction(() => { GameActions.Print(_world, "Failed to update the API..", 32); });
                         Log.Error(ex.ToString());
                     }
-                    CreateCSScriptingProjFiles();
+                    //CreateCSScriptingProjFiles();
                 }
             );
 
@@ -724,44 +724,6 @@ namespace ClassicUO.LegionScripting
         /// </summary>
         public static void CreateCSScriptingProjFiles()
         {
-            const string exampleScript = """
-                                   using System;
-                                   using System.Threading;
-                                   using ClassicUO.LegionScripting;
-
-                                   namespace ClassicUO.LegionScripting.Scripts;
-
-                                   /// <summary>
-                                   /// Example C# script template.
-                                   /// All C# scripts must:
-                                   /// 1. Be in the ClassicUO.LegionScripting.Scripts namespace
-                                   /// 2. Implement the ILegionScript interface
-                                   /// 3. Provide a Name property and Execute method
-                                   /// </summary>
-                                   public class ExampleScript : ILegionScript
-                                   {
-                                       public string Name => "Example Script";
-
-                                       public void Execute(LegionAPI api, CancellationToken cancellationToken)
-                                       {
-                                           // Your script code goes here
-                                           api.Print("Hello from C# script!");
-
-                                           // Check for cancellation periodically in loops
-                                           while (!cancellationToken.IsCancellationRequested)
-                                           {
-                                               api.Print("Script is running...");
-                                               api.Pause(1000);
-
-                                               // Example: Stop after 5 seconds
-                                               if (api.Timer() > 5000)
-                                                   break;
-                                           }
-
-                                           api.Print("Script finished!");
-                                       }
-                                   }
-                                   """;
             const string csProj = """
                                   <Project Sdk="Microsoft.NET.Sdk">
 
@@ -818,7 +780,6 @@ namespace ClassicUO.LegionScripting
 
             try
             {
-                File.WriteAllText(Path.Combine(CUOEnviroment.ExecutablePath, "LegionScripts", "ExampleScript.template.cs"), exampleScript);
                 File.WriteAllText(Path.Combine(CUOEnviroment.ExecutablePath, "LegionScripts", "LegionScripts.csproj"), csProj);
             }
             catch (Exception ex)

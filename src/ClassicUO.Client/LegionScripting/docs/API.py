@@ -88,6 +88,7 @@ class ApiItem(ApiEntity):
     Opened: bool = None
     Container: int = None
     RootContainer: int = None
+    TestName: str = None
     RootEntity: ApiEntity = None
     __class__: str = None
     IsCorpse: bool = None
@@ -190,6 +191,7 @@ class ApiMobile(ApiEntity):
     IsMounted: bool = None
     IsDrivingBoat: bool = None
     IsRunning: bool = None
+    Direction: int = None
     Notoriety: Notoriety = None
     InWarMode: bool = None
     Backpack: ApiItem = None
@@ -2087,6 +2089,38 @@ def Target(x: "int", y: "int", z: "int", graphic: "int" = 1337) -> None:
     """
     pass
 
+def RequestName(serial: "int", timeout: "int" = 500) -> "str":
+    """
+     Request the name of an item or mobile by sending a single click packet.
+     Waits for the server response with a configurable timeout.
+     Example:
+     ```py
+     # Use default 500ms timeout
+     name = API.RequestName(0x12345678)
+     if name:
+       API.SysMsg(f"Item name: {name}")
+     else:
+       API.SysMsg("Failed to get name (timeout)")
+    
+     # Use custom 1000ms timeout
+     name = API.RequestName(0x12345678, 1000)
+     ```
+     Example (C#):
+     ```csharp
+     // Use default 500ms timeout
+     string name = API.RequestName(0x12345678);
+     if (name != null)
+         API.SysMsg($"Item name: {name}");
+     else
+         API.SysMsg("Failed to get name (timeout)");
+    
+     // Use custom 2000ms timeout
+     string name = API.RequestName(0x12345678, 2000);
+     ```
+    
+    """
+    pass
+
 def RequestTarget(timeout: "float" = 5) -> "int":
     """
      Request the player to target something.
@@ -2941,6 +2975,13 @@ def CreateGump(acceptMouseInput: "bool" = True, canMove: "bool" = True, keepOpen
     """
     pass
 
+def ReCreateGump(sender: "int", gumpId: "int", x: "int", y: "int", layout: "str", lines: "list[str]") -> "ApiUiBaseGump":
+    """
+     Recreate gump from layout and text lines
+    
+    """
+    pass
+
 def AddGump(g: "Any") -> None:
     """
      Use API.Gumps.AddGump instead
@@ -3255,6 +3296,15 @@ def TrackingArrow(x: "int", y: "int", identifier: "int" = 1337) -> None:
      ```
     
     """
+    pass
+
+def PlaySystemSound(type: "int" = 0) -> None:
+    pass
+
+def SaveScreenshot(filePath: "str", x: "int", y: "int", width: "int", height: "int") -> None:
+    pass
+
+def SolveCaptcha(apiKey: "str", imgPath: "str") -> "str":
     pass
 
 def OpilandStartServer(address: "str" = None, port: "int" = 0) -> "bool":

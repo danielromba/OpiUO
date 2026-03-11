@@ -79,7 +79,14 @@ internal static class GumpHelpers
             y = pos.Y;
         }
         else
+        {
+            if (Settings.GlobalSettings.Endor && (x > 1200 || y > 550))
+            {
+                x = 100;
+                y = 100;
+            }
             UIManager.SavePosition(gumpID, new Point(x, y));
+        }
 
         if (mustBeAdded)
             gump = new Gump(world, sender, gumpID)
@@ -305,7 +312,8 @@ internal static class GumpHelpers
                         Client.Game.UO.FileManager.Clilocs.GetString(int.Parse(gparams[5].Replace("#", ""))),
                         0,
                         true
-                    ) { IsFromServer = true },
+                    )
+                    { IsFromServer = true },
                     page
                 );
             else if (
@@ -333,7 +341,8 @@ internal static class GumpHelpers
                         Client.Game.UO.FileManager.Clilocs.GetString(int.Parse(gparams[5].Replace("#", ""))),
                         color,
                         true
-                    ) { IsFromServer = true },
+                    )
+                    { IsFromServer = true },
                     page
                 );
             }
@@ -378,7 +387,8 @@ internal static class GumpHelpers
                             ),
                         color,
                         true
-                    ) { IsFromServer = true },
+                    )
+                    { IsFromServer = true },
                     page
                 );
             }
@@ -618,7 +628,8 @@ internal static class GumpHelpers
 
                         var menu = new MenuButton(25, Color.Black.PackedValue, 0.75f, "Menu")
                         {
-                            X = gump.Width - 46, Y = 6
+                            X = gump.Width - 46,
+                            Y = 6
                         };
                         menu.MouseUp += (s, e) =>
                         {

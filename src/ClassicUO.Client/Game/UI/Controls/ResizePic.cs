@@ -38,7 +38,7 @@ namespace ClassicUO.Game.UI.Controls
             IsFromServer = true;
         }
 
-        public ushort Graphic { get; }
+        public ushort Graphic { get; set; }
 
         public override bool Contains(int x, int y)
         {

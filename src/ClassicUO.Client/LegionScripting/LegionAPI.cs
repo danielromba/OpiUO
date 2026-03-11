@@ -1,11 +1,3 @@
-using System;
-using System.Collections;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 using ClassicUO.Assets;
 using ClassicUO.Configuration;
 using ClassicUO.Game;
@@ -18,18 +10,29 @@ using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
 using ClassicUO.LegionScripting.ApiClasses;
 using ClassicUO.Network;
+using ClassicUO.Network.PacketHandlers.Helpers;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
 using Microsoft.Xna.Framework;
+using SolveCaptcha.Captcha;
+using System;
+using System.Collections;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using static IronPython.Modules._ast;
 using Control = ClassicUO.Game.UI.Controls.Control;
+using CUOKeyboard = ClassicUO.Input.Keyboard;
 using Label = ClassicUO.Game.UI.Controls.Label;
 using Lock = ClassicUO.Game.Data.Lock;
-using CUOKeyboard = ClassicUO.Input.Keyboard;
 
 namespace ClassicUO.LegionScripting
 {
     /// <summary>
-    /// Python scripting access point
+    /// Python scripting access point X
     /// </summary>
     public class LegionAPI : IDisposable
     {
@@ -367,6 +370,7 @@ namespace ClassicUO.LegionScripting
         #endregion
 
         #region Methods
+
 
         public uint GetLastAttackSerial() =>
             MainThreadQueue.InvokeOnMainThread(() =>
@@ -2076,6 +2080,81 @@ namespace ClassicUO.LegionScripting
         );
 
         /// <summary>
+        /// Request the name of an item or mobile by sending a single click packet.
+        /// Waits for the server response with a configurable timeout.
+        /// Example:
+        /// ```py
+        /// # Use default 500ms timeout
+        /// name = API.RequestName(0x12345678)
+        /// if name:
+        ///   API.SysMsg(f"Item name: {name}")
+        /// else:
+        ///   API.SysMsg("Failed to get name (timeout)")
+        /// 
+        /// # Use custom 1000ms timeout
+        /// name = API.RequestName(0x12345678, 1000)
+        /// ```
+        /// Example (C#):
+        /// ```csharp
+        /// // Use default 500ms timeout
+        /// string name = API.RequestName(0x12345678);
+        /// if (name != null)
+        ///     API.SysMsg($"Item name: {name}");
+        /// else
+        ///     API.SysMsg("Failed to get name (timeout)");
+        /// 
+        /// // Use custom 2000ms timeout
+        /// string name = API.RequestName(0x12345678, 2000);
+        /// ```
+        /// </summary>
+        /// <param name="serial">Serial of the item or mobile to request name for</param>
+        /// <param name="timeout">Timeout in milliseconds to wait for server response (default: 500ms)</param>
+        /// <returns>The entity name, or null if timeout occurs</returns>
+        public string RequestName(uint serial, int timeout = 500)
+        {
+            // Clamp timeout to reasonable range (50ms - 5000ms)
+            timeout = Math.Clamp(timeout, 50, 5000);
+
+            string result = null;
+            var resetEvent = new ManualResetEventSlim(false);
+
+            // Event handler to capture the response
+            EventHandler<MessageEventArgs> handler = null;
+            handler = (sender, e) =>
+            {
+                // Check if this is the response for our serial
+                if (sender is Entity entity && entity.Serial == serial)
+                {
+                    result = e.Name;
+                    resetEvent.Set();
+                }
+            };
+
+            // Subscribe to the event
+            EventSink.ClilocMessageReceived += handler;
+
+            try
+            {
+                // Send the single click request on main thread
+                MainThreadQueue.InvokeOnMainThread(() =>
+                {
+                    AsyncNetClient.Socket.Send_ClickRequest(serial);
+                });
+
+                // Wait for response with specified timeout
+                bool received = resetEvent.Wait(timeout);
+
+                return received ? result : null;
+            }
+            finally
+            {
+                // Always unsubscribe from the event
+                EventSink.ClilocMessageReceived -= handler;
+                resetEvent.Dispose();
+            }
+        }
+
+        /// <summary>
         /// Request the player to target something.
         /// Example:
         /// ```py
@@ -2569,7 +2648,7 @@ namespace ClassicUO.LegionScripting
                         {
                             ushort index = Convert.ToUInt16(entryPair[0]);
                             string text = entryPair[1]?.ToString() ?? "";
-                            entryList.Add(Tuple.Create(index, text));
+                            entryList.Add(System.Tuple.Create(index, text));
                         }
                     }
                     entryArray = entryList.ToArray();
@@ -3851,6 +3930,21 @@ namespace ClassicUO.LegionScripting
         /// Use API.Gumps.CreateGump instead
         /// </summary>
         public ApiUiBaseGump CreateGump(bool acceptMouseInput = true, bool canMove = true, bool keepOpen = false) => Gumps.CreateGump(acceptMouseInput, canMove, keepOpen);
+
+        /// <summary>
+        /// Recreate gump from layout and text lines
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="gumpId"></param>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="layout"></param>
+        /// <param name="lines"></param>
+        public Gump ReCreateGump(uint sender, uint gumpId, int x, int y, string layout, string[] lines)
+        {
+            return GumpHelpers.CreateGump(World, sender, gumpId, x, y, layout, lines);
+        }
+
         /// <summary>
         /// Use API.Gumps.AddGump instead
         /// </summary>
@@ -4333,6 +4427,56 @@ namespace ClassicUO.LegionScripting
                 UIManager.Add(arrow);
             }
         });
+
+        public void PlaySystemSound(int type = 0) => MainThreadQueue.InvokeOnMainThread(() =>
+        {
+            switch (type)
+            {
+                case 0:
+                    System.Media.SystemSounds.Asterisk.Play();
+                    break;
+                case 1:
+                    System.Media.SystemSounds.Beep.Play();
+                    break;
+                case 2:
+                    System.Media.SystemSounds.Exclamation.Play();
+                    break;
+                case 3:
+                    System.Media.SystemSounds.Hand.Play();
+                    break;
+                case 4:
+                    System.Media.SystemSounds.Question.Play();
+                    break;
+                default:
+                    System.Media.SystemSounds.Exclamation.Play();
+                    break;
+            }
+        });
+
+        public void SaveScreenshot(string filePath, int x, int y, int width, int height) => MainThreadQueue.InvokeOnMainThread(() =>
+        {
+            Client.Game.SaveToFile(filePath, new Rectangle(x, y, width, height));
+        });
+
+        public string SolveCaptcha(string apiKey, string imgPath)
+        {
+            var solver = new SolveCaptcha.SolveCaptcha(apiKey);
+            solver.DefaultTimeout = 55;
+            Normal captcha = new Normal(imgPath);
+
+            try
+            {
+                solver.Solve(captcha).GetAwaiter().GetResult();
+                return captcha.Code;
+            }
+            catch (AggregateException e)
+            {
+                Log.Error("Error occurred: " + e.InnerExceptions.First().Message);
+            }
+
+            return null;
+        }
+
 
         #endregion
 

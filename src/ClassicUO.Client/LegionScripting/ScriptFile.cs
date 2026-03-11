@@ -202,6 +202,27 @@ public partial class ScriptFile : IDisposable
             MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location)
         };
 
+        // Try to add SolveCaptcha.Captcha reference if available
+        try
+        {
+            string captchaPath = System.IO.Path.Combine(CUOEnviroment.ExecutablePath, "SolveCaptcha.dll");
+
+            if (File.Exists(captchaPath))
+            {
+                Assembly captchaAssembly = Assembly.LoadFrom(captchaPath);
+                references.Add(MetadataReference.CreateFromFile(captchaAssembly.Location));
+                Log.Trace("Successfully loaded SolveCaptcha.Captcha assembly for script compilation");
+            }
+            else
+            {
+                Log.Trace($"SolveCaptcha.Captcha assembly not found at: {captchaPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Failed to load SolveCaptcha.Captcha assembly: {ex.Message}");
+        }
+
         // Create compilation
         string assemblyName = $"LegionScript_{System.IO.Path.GetFileNameWithoutExtension(FileName)}_{Guid.NewGuid():N}";
         var compilation = CSharpCompilation.Create(

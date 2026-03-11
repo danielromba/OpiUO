@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: BSD-2-Clause
+// SPDX-License-Identifier: BSD-2-Clause
 
 using ClassicUO.Assets;
 using ClassicUO.Configuration;
@@ -51,6 +51,9 @@ namespace ClassicUO
         private Rectangle bufferRect = Rectangle.Empty;
         private RenderTarget2D _screenRenderTarget;
         private bool _useScreenRenderTarget = true; // Re-enabling to debug rendering issues
+        private string SaveToFilePath { get; set; } = null;
+        private Rectangle SaveToFileRect { get; set; } = Rectangle.Empty;
+
 
         private static Vector3 bgHueShader = new(0, 0, 0.3f);
         private bool drawScene;
@@ -640,8 +643,71 @@ namespace ClassicUO
                     Plugin.ProcessDrawCmdList(GraphicsDevice);
             }
 
+            SaveToFileInternal();
+
             Profiler.EnterContext("OutOfContext");
             base.Draw(gameTime);
+        }
+
+        public void SaveToFile(string path, Rectangle rect)
+        {
+            SaveToFilePath = path;
+            SaveToFileRect = rect;
+        }
+
+        protected void SaveToFileInternal()
+        {
+            if (string.IsNullOrEmpty(SaveToFilePath))
+                return;
+
+            try
+            {
+                // Determine what area to capture
+                Rectangle captureRect = SaveToFileRect == Rectangle.Empty 
+                    ? new Rectangle(0, 0, Window.ClientBounds.Width, Window.ClientBounds.Height)
+                    : SaveToFileRect;
+
+                // Create render target with the EXACT size of the area we want to capture
+                using var rt = new RenderTarget2D(
+                    GraphicsDevice,
+                    captureRect.Width,
+                    captureRect.Height,
+                    false,
+                    SurfaceFormat.Color,
+                    DepthFormat.None);
+
+                // Render to texture
+                GraphicsDevice.SetRenderTarget(rt);
+                GraphicsDevice.Clear(Color.Transparent);
+
+                _uoSpriteBatch.Begin();
+
+                // Draw only the specified rectangle area from the screen render target
+                // Source: the captureRect area from _screenRenderTarget
+                // Destination: fill the entire new render target (0,0) to (width,height)
+                var destRect = new Rectangle(0, 0, captureRect.Width, captureRect.Height);
+                _uoSpriteBatch.Draw(_screenRenderTarget, destRect, captureRect, new Vector3(0, 0, 1f));
+
+                _uoSpriteBatch.End();
+
+                // Restore back buffer
+                GraphicsDevice.SetRenderTarget(null);
+
+                // Save with the exact dimensions of the captured area
+                using var fs = System.IO.File.Create(SaveToFilePath);
+                rt.SaveAsPng(fs, captureRect.Width, captureRect.Height);
+
+                Log.Trace($"Saved screenshot to {SaveToFilePath} ({captureRect.Width}x{captureRect.Height})");
+
+                SaveToFilePath = null;
+                SaveToFileRect = Rectangle.Empty;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to save screenshot: {ex}");
+                SaveToFilePath = null;
+                SaveToFileRect = Rectangle.Empty;
+            }
         }
 
         protected override bool BeginDraw() => !_suppressedDraw && base.BeginDraw();

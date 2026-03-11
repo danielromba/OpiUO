@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using ClassicUO.Game.Managers.Structs;
 using ClassicUO.Utility.Logging;
+using System.Threading;
 
 namespace ClassicUO.Game.Managers
 {
@@ -37,14 +38,15 @@ namespace ClassicUO.Game.Managers
         }
         public List<AutoLootConfigEntry> AutoLootList { get => _autoLootItems; set => _autoLootItems = value; }
 
-        private readonly HashSet<uint> _quickContainsLookup = new ();
+        private readonly HashSet<uint> _quickContainsLookup = new();
         private readonly HashSet<uint> _recentlyLooted = new();
-        private static readonly PriorityQueue<(uint item, AutoLootConfigEntry entry), AutoLootPriority> _lootItems = new ();
-        private List<AutoLootConfigEntry> _autoLootItems = new ();
+        private static readonly PriorityQueue<(uint item, AutoLootConfigEntry entry), AutoLootPriority> _lootItems = new();
+        private List<AutoLootConfigEntry> _autoLootItems = new();
         private bool _loaded = false;
         private readonly string _savePath;
         private long _nextLootTime = Time.Ticks;
         private long _nextClearRecents = Time.Ticks + 5000;
+        private long _nextRipTime = Time.Ticks;
         private ProgressBarGump _progressBarGump;
         private int _currentLootTotalCount = 0;
         private bool IsEnabled => ProfileManager.CurrentProfile.EnableAutoLoot;
@@ -92,7 +94,7 @@ namespace ClassicUO.Game.Managers
         {
             if (!_loaded || i == null || _quickContainsLookup.Contains(i.Serial)) return;
 
-            if(i.IsCorpse)
+            if (i.IsCorpse)
             {
                 HandleCorpse(i);
 
@@ -165,11 +167,15 @@ namespace ClassicUO.Game.Managers
 
             if (corpse.IsHumanCorpse && !ProfileManager.CurrentProfile.AutoLootHumanCorpses) return;
 
-            for (LinkedObject i = corpse.Items; i != null; i = i.Next)
-                CheckAndLoot((Item)i);
+            // Do not autoloot from corpse on Endor. Razor does not have this feature so not to be obvious...
+            if (!Settings.GlobalSettings.Endor)
+            {
+                for (LinkedObject i = corpse.Items; i != null; i = i.Next)
+                    CheckAndLoot((Item)i);
 
-            if(ProfileManager.CurrentProfile.HueCorpseAfterAutoloot)
-                corpse.Hue = 73;
+                if (ProfileManager.CurrentProfile.HueCorpseAfterAutoloot)
+                    corpse.Hue = 73;
+            }
         }
 
         public void TryRemoveAutoLootEntry(string uid)
@@ -390,7 +396,7 @@ namespace ClassicUO.Game.Managers
             Task.Factory.StartNew(() =>
             {
                 string oldPath = Path.Combine(CUOEnviroment.ExecutablePath, "Data", "Profiles", "AutoLoot.json");
-                if(File.Exists(oldPath))
+                if (File.Exists(oldPath))
                     File.Move(oldPath, _savePath);
 
                 if (!File.Exists(_savePath))
@@ -436,7 +442,7 @@ namespace ClassicUO.Game.Managers
 
         public void ClearActiveLootQueue()
         {
-            while (_lootItems.TryDequeue(out _, out _));
+            while (_lootItems.TryDequeue(out _, out _)) ;
             _currentLootTotalCount = 0;
             _quickContainsLookup.Clear();
             _progressBarGump?.Dispose();
@@ -535,7 +541,7 @@ namespace ClassicUO.Game.Managers
             return otherConfigs;
         }
 
-        #nullable enable
+#nullable enable
         public string? GetJsonExport()
         {
             try
@@ -549,7 +555,7 @@ namespace ClassicUO.Game.Managers
 
             return null;
         }
-        #nullable disable
+#nullable disable
 
         public bool ImportFromJson(string json)
         {

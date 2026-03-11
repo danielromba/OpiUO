@@ -17,6 +17,7 @@ public class ApiItem : ApiEntity
     public bool Opened => GetItem()?.Opened ?? false;
     public uint Container => GetItem()?.Container ?? 0;
     public uint RootContainer => GetItem()?.RootContainer ?? 0;
+    public string TestName => GetItemUnsafe()?.Name ?? "";
 
     /// <summary>
     /// Check if this item is a container(Bag, chest, etc)

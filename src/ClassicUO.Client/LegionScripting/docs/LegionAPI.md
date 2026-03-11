@@ -21,7 +21,7 @@ You can now type `-updateapi` in game to download the latest API.py file.
 
 [Additional notes](../notes/)  
 
-*This was generated on `3.2.26`.*
+*This was generated on `3.11.26`.*
 
 ## Properties
 ### `Events`
@@ -1762,6 +1762,47 @@ You can now type `-updateapi` in game to download the latest API.py file.
 
 ---
 
+### RequestName
+`(serial, timeout)`
+ Request the name of an item or mobile by sending a single click packet.
+ Waits for the server response with a configurable timeout.
+ Example:
+ ```py
+ # Use default 500ms timeout
+ name = API.RequestName(0x12345678)
+ if name:
+   API.SysMsg(f"Item name: {name}")
+ else:
+   API.SysMsg("Failed to get name (timeout)")
+ 
+ # Use custom 1000ms timeout
+ name = API.RequestName(0x12345678, 1000)
+ ```
+ Example (C#):
+ ```csharp
+ // Use default 500ms timeout
+ string name = API.RequestName(0x12345678);
+ if (name != null)
+     API.SysMsg($"Item name: {name}");
+ else
+     API.SysMsg("Failed to get name (timeout)");
+ 
+ // Use custom 2000ms timeout
+ string name = API.RequestName(0x12345678, 2000);
+ ```
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `serial` | `uint` | ❌ No | Serial of the item or mobile to request name for |
+| `timeout` | `int` | ✅ Yes | Timeout in milliseconds to wait for server response (default: 500ms) |
+
+**Return Type:** `string`
+
+---
+
 ### RequestTarget
 `(timeout)`
  Request the player to target something.
@@ -3095,6 +3136,26 @@ You can now type `-updateapi` in game to download the latest API.py file.
 
 ---
 
+### ReCreateGump
+`(sender, gumpId, x, y, layout, lines)`
+ Recreate gump from layout and text lines
+
+
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `sender` | `uint` | ❌ No |  |
+| `gumpId` | `uint` | ❌ No |  |
+| `x` | `int` | ❌ No |  |
+| `y` | `int` | ❌ No |  |
+| `layout` | `string` | ❌ No |  |
+| `lines` | `string[]` | ❌ No |  |
+
+**Return Type:** `Gump`
+
+---
+
 ### AddGump
 `(g)`
  Use API.Gumps.AddGump instead
@@ -3745,6 +3806,47 @@ You can now type `-updateapi` in game to download the latest API.py file.
 | `identifier` | `uint` | ✅ Yes | An identified number if you want multiple arrows. |
 
 **Return Type:** `void` *(Does not return anything)*
+
+---
+
+### PlaySystemSound
+`(type)`
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `type` | `int` | ✅ Yes |  |
+
+**Return Type:** `void` *(Does not return anything)*
+
+---
+
+### SaveScreenshot
+`(filePath, x, y, width, height)`
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `filePath` | `string` | ❌ No |  |
+| `x` | `int` | ❌ No |  |
+| `y` | `int` | ❌ No |  |
+| `width` | `int` | ❌ No |  |
+| `height` | `int` | ❌ No |  |
+
+**Return Type:** `void` *(Does not return anything)*
+
+---
+
+### SolveCaptcha
+`(apiKey, imgPath)`
+**Parameters:**
+
+| Name | Type | Optional | Description |
+| --- | --- | --- | --- |
+| `apiKey` | `string` | ❌ No |  |
+| `imgPath` | `string` | ❌ No |  |
+
+**Return Type:** `string`
 
 ---
 

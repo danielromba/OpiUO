@@ -33,6 +33,8 @@ public class ApiMobile : ApiEntity
     public bool IsMounted => MainThreadQueue.InvokeOnMainThread(() => GetMobileUnsafe()?.IsMounted ?? false);
     public bool IsDrivingBoat => MainThreadQueue.InvokeOnMainThread(() => GetMobileUnsafe()?.IsDrivingBoat ?? false);
     public bool IsRunning => MainThreadQueue.InvokeOnMainThread(() => GetMobileUnsafe()?.IsRunning ?? false);
+    public byte Direction => MainThreadQueue.InvokeOnMainThread(() => (byte)(GetMobileUnsafe()?.Direction ?? 0));
+
     public Notoriety Notoriety => MainThreadQueue.InvokeOnMainThread(() =>
     {
         Mobile mob = GetMobileUnsafe();

@@ -1,6 +1,7 @@
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
+using ClassicUO.Network.PacketHandlers.Helpers;
 
 namespace ClassicUO.LegionScripting.ApiClasses;
 
