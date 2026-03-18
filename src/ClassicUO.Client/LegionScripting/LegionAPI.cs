@@ -1884,6 +1884,8 @@ namespace ClassicUO.LegionScripting
             {
                 ProfileManager.CurrentProfile.FollowingMode = true;
                 ProfileManager.CurrentProfile.FollowingTarget = mobile;
+                // Tell pathfinder to ignore this mobile as an obstacle
+                Pathfinder.SetFollowTarget(mobile);
             }
         );
 
@@ -1898,6 +1900,8 @@ namespace ClassicUO.LegionScripting
         public void CancelAutoFollow() => MainThreadQueue.InvokeOnMainThread(() =>
         {
             if (ProfileManager.CurrentProfile != null) ProfileManager.CurrentProfile.FollowingMode = false;
+            // Clear the follow target from pathfinder
+            Pathfinder.ClearFollowTarget();
         });
 
         /// <summary>

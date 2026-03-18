@@ -35,14 +35,24 @@ namespace ClassicUO.Utility.Logging
         private int _indent;
 
         private bool _isLogging;
+        private LogFile _logFile; // Store the log file reference
         private readonly object _syncObject = new object();
 
         // No volatile support for properties, let's use a private backing field.
         public LogTypes LogTypes { get; set; }
 
-        public void Start(LogFile logFile = null) => _isLogging = true;
+        public void Start(LogFile logFile = null)
+        {
+            _logFile = logFile; // Store the log file
+            _isLogging = true;
+        }
 
-        public void Stop() => _isLogging = false;
+        public void Stop()
+        {
+            _isLogging = false;
+            _logFile?.Dispose(); // Dispose log file when stopping
+            _logFile = null;
+        }
 
         public void Message(LogTypes logType, string text)
         {
@@ -83,33 +93,38 @@ namespace ClassicUO.Utility.Logging
 
             if ((LogTypes & type) == type)
             {
+                string logMessage; // Build message once for both console and file
+
                 if (type == LogTypes.None)
                 {
-                    if (_indent > 0)
-                    {
-                        Console.Write(new string('\t', _indent * 2));
-                    }
-
-                    Console.WriteLine(text);
+                    string indentStr = _indent > 0 ? new string('\t', _indent * 2) : string.Empty;
+                    logMessage = indentStr + text;
+                    Console.WriteLine(logMessage);
                 }
                 else
                 {
-                    Console.Write(DateTime.UtcNow);
+                    // Build formatted message
+                    string timestamp = DateTime.UtcNow.ToString("o"); // ISO 8601 format
+                    string typeStr = _logTypesInfo[type].Item2;
+                    string indentStr = _indent > 0 ? new string('\t', _indent * 2) : string.Empty;
+
+                    // Console output with colors
+                    Console.Write(timestamp);
                     Console.Write(" | ");
                     ConsoleColor temp = Console.ForegroundColor;
-
                     Console.ForegroundColor = _logTypesInfo[type].Item1;
-                    Console.Write(_logTypesInfo[type].Item2);
+                    Console.Write(typeStr);
                     Console.ForegroundColor = temp;
                     Console.Write(" | ");
-
-                    if (_indent > 0)
-                    {
-                        Console.Write(new string('\t', _indent * 2));
-                    }
-
+                    Console.Write(indentStr);
                     Console.WriteLine(text);
+
+                    // File output (plain text, no colors)
+                    logMessage = $"{timestamp} | {typeStr} | {indentStr}{text}";
                 }
+
+                // Write to log file if available
+                _logFile?.Write(logMessage);
             }
         }
     }

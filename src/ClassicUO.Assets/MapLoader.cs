@@ -43,7 +43,7 @@ namespace ClassicUO.Assets
                     7168, 4096
                 },
                 {
-                    2304, 1600
+                    2304, 1600 // 5370, 4096 for endor
                 },
                 {
                     2560, 2048
@@ -96,6 +96,12 @@ namespace ClassicUO.Assets
         public override unsafe void Load()
         {
             bool foundOneMap = false;
+
+            if (Endor)
+            {
+                MapsDefaultSize[2, 0] = 5370;
+                MapsDefaultSize[2, 1] = 4096;
+            }
 
             if (!string.IsNullOrEmpty(MapsLayouts))
             {

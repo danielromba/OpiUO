@@ -44,6 +44,15 @@ namespace ClassicUO
             CopyRequiredLibs();
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
             Language.Load();
+
+            // Create Logs directory if it doesn't exist
+            string logsPath = Path.Combine(CUOEnviroment.ExecutablePath, "Logs");
+            if (!Directory.Exists(logsPath))
+                Directory.CreateDirectory(logsPath);
+
+            // Enable file logging
+            var logFile = new LogFile(logsPath, "client.txt");
+            //Log.Start(LogTypes.All, logFile);
             Log.Start(LogTypes.All);
 
             //DllMap.Init();

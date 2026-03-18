@@ -16,6 +16,7 @@ namespace ClassicUO.Assets
 
         public UOFileManager FileManager { get; }
 
+        public bool Endor { get; set; } = false;
         public bool IsDisposed { get; private set; }
 
         public virtual void Dispose()

@@ -264,6 +264,7 @@ class ApiPlayer(ApiMobile):
     Followers: int = None
     FollowersMax: int = None
     EnhancePotions: int = None
+    Flags = None
     MaxHitPointsIncrease: int = None
     MaxManaIncrease: int = None
     MaxStaminaIncrease: int = None

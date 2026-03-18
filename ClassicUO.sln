@@ -43,6 +43,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "settings", "settings", "{21
 		ClassicUO.licenseheader = ClassicUO.licenseheader
 		ClassicUO.sln.DotSettings = ClassicUO.sln.DotSettings
 		src\Directory.Build.props = src\Directory.Build.props
+		bin\Debug\net10.0\win-x64\Logs\pathfinder.txt = bin\Debug\net10.0\win-x64\Logs\pathfinder.txt
 		shards.txt = shards.txt
 	EndProjectSection
 EndProject

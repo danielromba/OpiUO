@@ -217,6 +217,10 @@ description:  Represents a Python-accessible player character with full stat and
 
 **Type:** `short`
 
+### `Flags`
+
+**Type:** `Flags`
+
 ### `MaxHitPointsIncrease`
 
 **Type:** `short`

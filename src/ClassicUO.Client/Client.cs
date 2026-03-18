@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: BSD-2-Clause
+// SPDX-License-Identifier: BSD-2-Clause
 
 using ClassicUO.Assets;
 using ClassicUO.Configuration;
@@ -185,7 +185,7 @@ namespace ClassicUO
             Log.Trace($"Protocol: {Protocol}");
 
             FileManager = new UOFileManager(clientVersion, clientPath);
-            FileManager.Load(Settings.GlobalSettings.UseVerdata, Settings.GlobalSettings.Language, Settings.GlobalSettings.MapsLayouts);
+            FileManager.Load(Settings.GlobalSettings.UseVerdata, Settings.GlobalSettings.Language, Settings.GlobalSettings.MapsLayouts, Settings.GlobalSettings.Endor);
 
             StaticFilters.Load(FileManager.TileData);
             BuffTable.Load();

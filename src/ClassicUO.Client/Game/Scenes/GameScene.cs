@@ -999,6 +999,11 @@ namespace ClassicUO.Game.Scenes
                     }
                     else if (distance > currentProfile.AutoFollowDistance)
                     {
+                        // Set follow target before pathfinding to exclude it from obstacles
+                        Pathfinder.SetFollowTarget(follow.Serial);
+
+                        Log.Trace($"[GameScene] AutoFollow: Following {follow.Serial:X8} at ({follow.X},{follow.Y},{follow.Z}), distance={distance}");
+
                         if (!_world.Player.Pathfinder.WalkTo(follow.X, follow.Y, follow.Z, currentProfile.AutoFollowDistance) && !_world.Player.IsParalyzed)
                         {
                             StopFollowing(); //Can't get there

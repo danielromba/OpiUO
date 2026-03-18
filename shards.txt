@@ -7,5 +7,5 @@ Moria Reborn
 Endor
   89.187.144.43
   5000
-  F:\Games\EndorRevived2\Client\Muls
+  F:\\Games\\EndorRevived2\\Client\\Muls
   v7.0.33.1

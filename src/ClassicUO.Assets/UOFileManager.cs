@@ -135,9 +135,11 @@ namespace ClassicUO.Assets
             return uoFilePath;
         }
 
-        public void Load(bool useVerdata, string lang, string mapsLayouts = "")
+        public void Load(bool useVerdata, string lang, string mapsLayouts = "", bool endor = false)
         {
             var stopwatch = Stopwatch.StartNew();
+
+            Maps.Endor = endor;
 
             _overrideMap.Load(); // need to load this first so that it manages can perform the file overrides if needed
 

@@ -82,6 +82,11 @@ public class ApiPlayer : ApiMobile
     public byte Followers => MainThreadQueue.InvokeOnMainThread(() => GetPlayerUnsafe()?.Followers ?? 0);
     public byte FollowersMax => MainThreadQueue.InvokeOnMainThread(() => GetPlayerUnsafe()?.FollowersMax ?? 0);
     public short EnhancePotions => MainThreadQueue.InvokeOnMainThread(() => GetPlayerUnsafe()?.EnhancePotions ?? 0);
+    public Flags Flags
+    {
+        get => MainThreadQueue.InvokeOnMainThread(() => GetPlayerUnsafe()?.Flags ?? 0);
+        set => MainThreadQueue.InvokeOnMainThread(() => GetPlayerUnsafe()?.Flags = value);
+    }
 
     // Max Stat Increases
     public short MaxHitPointsIncrease => MainThreadQueue.InvokeOnMainThread(() => GetPlayerUnsafe()?.MaxHitPointsIncrease ?? 0);
