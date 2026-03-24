@@ -15,6 +15,7 @@ using Microsoft.Xna.Framework;
 using System;
 using System.Xml;
 using ClassicUO.Game.Managers.Structs;
+using System.Linq;
 
 namespace ClassicUO.Game.UI.Gumps
 {
@@ -758,6 +759,21 @@ namespace ClassicUO.Game.UI.Gumps
 
                     break;
             }
+        }
+
+        public override bool Draw(UltimaBatcher2D batcher, int x, int y)
+        {
+            var child = Children.FirstOrDefault(item => item.CanMove && item.IsVisible);
+
+            foreach (var item in Children)
+            {
+                if (item is GumpPic pic)
+                {
+
+                }
+            }
+
+            return base.Draw(batcher, x, y);
         }
 
         private enum Buttons

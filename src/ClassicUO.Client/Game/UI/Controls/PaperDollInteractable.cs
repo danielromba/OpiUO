@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
-using System.Collections.Generic;
 using ClassicUO.Assets;
 using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
@@ -8,9 +7,18 @@ using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Input;
+using ClassicUO.Renderer;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using MonoGame.Extended;
+using MonoGame.Extended.Particles;
+using MonoGame.Extended.Particles.Data;
+using MonoGame.Extended.Particles.Modifiers;
+using Myra.Graphics2D.TextureAtlases;
+using System;
+using System.Collections.Generic;
 
 namespace ClassicUO.Game.UI.Controls
 {
@@ -98,6 +106,9 @@ namespace ClassicUO.Game.UI.Controls
         };
 
         private readonly PaperDollGump _paperDollGump;
+        private Texture2D EffectTexture = null;
+        private Texture2D ParticleTexture = null;
+        private ParticleEffect Effect = null;
 
         private bool _updateUI;
 
@@ -113,6 +124,34 @@ namespace ClassicUO.Game.UI.Controls
             // Only set Scale/InternalScale for non-ScalableGump parents
             // ScalableGump.Add() will handle scaling automatically
             Scale = InternalScale = scale;
+
+            if (EffectTexture == null)
+                PNGLoader.Instance.TryGetEmbeddedTexture("effect1.png", out EffectTexture);
+            if (ParticleTexture == null)
+                PNGLoader.Instance.TryGetEmbeddedTexture("circle.png", out ParticleTexture);
+
+            if (Effect == null)
+            {
+                var emitter = new ParticleEmitter(
+                    textureRegion: new TextureRegion2D(ParticleTexture),
+                    capacity: 500,
+                    profile: Profile.Circle(10, Profile.CircleRadiation.Out));
+
+                emitter.Parameters = new ParticleReleaseParameters
+                {
+                    Quantity = 5,
+                    Speed = new Range<float>(50, 100),
+                    Rotation = new Range<float>(0, MathF.PI * 2),
+                    Scale = new Range<float>(0.5f, 1f),
+                    Color = new Range<Color>(Color.Orange, Color.Yellow),
+                    Life = new Range<float>(0.5f, 1.5f)
+                };
+
+                emitter.Modifiers.Add(new LinearGravityModifier(new Vector2(0, 30)));
+
+                _particleEffect = new ParticleEffect();
+                _particleEffect.Emitters.Add(emitter);
+            }
         }
 
         public bool HasFakeItem { get; private set; }
@@ -197,6 +236,8 @@ namespace ClassicUO.Game.UI.Controls
                 body = 0x000C;
             }
 
+            AddBackgroundEffect();
+
             // body
             Add(new GumpPic(0, 0, body, hue) { IsPartialHue = true }.ScaleWidthAndHeight(Scale).SetInternalScale(Scale));
 
@@ -246,7 +287,7 @@ namespace ClassicUO.Game.UI.Controls
                 {
                     layers = equipItem.ItemData.IsContainer ? _layerOrder_quiver_fix : _layerOrder;
 
-                    if(Settings.GlobalSettings.CustomServer == Settings.CustomServers.Eventine)
+                    if (Settings.GlobalSettings.CustomServer == Settings.CustomServers.Eventine)
                         layers = equipItem.ItemData.IsContainer ? _layerOrder_quiver_fix : equipItem.Graphic == 0xA413 ? _layerOrder_quiver_fix : _layerOrder;
                 }
             }
@@ -434,9 +475,9 @@ namespace ClassicUO.Game.UI.Controls
                     && animID == 0x03CA // graphic for dead shroud
                     && (mobileGraphic == 0x02B7 || mobileGraphic == 0x02B6)
                 ) // dead gargoyle graphics
-                {
-                    animID = 0x0223;
-                }
+            {
+                animID = 0x0223;
+            }
 
             Client.Game.UO.Animations.ConvertBodyIfNeeded(ref mobileGraphic);
 
@@ -501,6 +542,16 @@ namespace ClassicUO.Game.UI.Controls
             }
 
             return true;
+        }
+
+        private void AddBackgroundEffect()
+        {
+            if (EffectTexture == null)
+                return;
+
+            var pic = new AnimatedEmbeddedGumpPic(0, 0, EffectTexture, 5, 3, 100);
+            Add(pic);
+
         }
 
         protected class GumpPicEquipment : GumpPic
@@ -588,6 +639,90 @@ namespace ClassicUO.Game.UI.Controls
             }
 
             public override void OnMouseOver(int x, int y) => SelectedObject.Object = _gump?.World?.Get(LocalSerial);
+        }
+
+        protected class AnimatedEmbeddedGumpPic : GumpPicBase
+        {
+            private readonly Texture2D _spriteSheet;
+            private readonly int _columns;
+            private readonly int _rows;
+            private readonly int _frameWidth;
+            private readonly int _frameHeight;
+            private readonly int _totalFrames;
+            private readonly uint _frameDelayMs;
+            private ulong _nextFrameTime;
+            private int _currentFrame;
+
+            public AnimatedEmbeddedGumpPic(int x, int y, Texture2D spriteSheet, int columns, int rows, uint frameDelayMs)
+            {
+                X = x;
+                Y = y;
+                _spriteSheet = spriteSheet;
+                _columns = columns;
+                _rows = rows;
+                _frameDelayMs = frameDelayMs;
+                _totalFrames = columns * rows;
+                _currentFrame = 0;
+                _nextFrameTime = Time.Ticks + _frameDelayMs;
+
+                if (_spriteSheet != null)
+                {
+                    _frameWidth = _spriteSheet.Width / columns;
+                    _frameHeight = _spriteSheet.Height / rows;
+                    Width = _frameWidth;
+                    Height = _frameHeight;
+                }
+
+                AcceptMouseInput = false;
+            }
+
+            public override void Update()
+            {
+                base.Update();
+
+                if (Time.Ticks >= _nextFrameTime)
+                {
+                    _currentFrame = (_currentFrame + 1) % _totalFrames;
+                    _nextFrameTime = Time.Ticks + _frameDelayMs;
+                }
+            }
+
+            public override bool Draw(UltimaBatcher2D batcher, int x, int y)
+            {
+                if (IsDisposed || _spriteSheet == null || _spriteSheet.IsDisposed)
+                {
+                    return false;
+                }
+
+                int column = _currentFrame % _columns;
+                int row = _currentFrame / _columns;
+
+                var sourceRect = new Rectangle(
+                    column * _frameWidth,
+                    row * _frameHeight,
+                    _frameWidth,
+                    _frameHeight
+                );
+
+                Vector3 hueVector = ShaderHueTranslator.GetHueVector(0, false, Alpha, true);
+
+                batcher.Draw(
+                    _spriteSheet,
+                    new Rectangle(x, y, _frameWidth, _frameHeight),
+                    sourceRect,
+                    hueVector
+                );
+
+                return base.Draw(batcher, x, y);
+            }
+        }
+
+        protected class TestParticle : Control
+        {
+            public override bool Draw(UltimaBatcher2D batcher, int x, int y)
+            {
+                return base.Draw(batcher, x, y);
+            }
         }
     }
 }
