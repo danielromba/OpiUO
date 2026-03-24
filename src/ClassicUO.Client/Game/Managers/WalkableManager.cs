@@ -387,83 +387,6 @@ namespace ClassicUO.Game.Managers
         /// <param name="y">Y coordinate of the tile</param>
         /// <param name="z">Z coordinate to check from</param>
         /// <returns>True if the tile is walkable, false otherwise</returns>
-        /// <summary>
-        /// Result structure for batch walkability checks.
-        /// Uses a struct for performance (no heap allocations).
-        /// </summary>
-        public readonly struct WalkabilityResult
-        {
-            public readonly int X;
-            public readonly int Y;
-            public readonly bool IsWalkable;
-
-            public WalkabilityResult(int x, int y, bool isWalkable)
-            {
-                X = x;
-                Y = y;
-                IsWalkable = isWalkable;
-            }
-        }
-
-        /// <summary>
-        /// Efficiently checks walkability for multiple tiles in a rectangular area.
-        /// This is optimized for performance and calculates walkability from the current player's Z level.
-        /// Does NOT use cached data to ensure accuracy with the player's current elevation.
-        /// </summary>
-        /// <param name="x1">Starting X coordinate</param>
-        /// <param name="y1">Starting Y coordinate</param>
-        /// <param name="x2">Ending X coordinate</param>
-        /// <param name="y2">Ending Y coordinate</param>
-        /// <param name="z">Z coordinate to check from (defaults to player's current Z)</param>
-        /// <returns>Array of WalkabilityResult containing position and walkability status</returns>
-        public WalkabilityResult[] CheckAreaWalkability(int x1, int y1, int x2, int y2, int z = int.MinValue)
-        {
-            if (World.Instance == null || !World.Instance.InGame || World.Instance.Map == null || World.Instance.Player == null)
-                return [];
-
-            // Use player's Z if not specified
-            if (z == int.MinValue)
-                z = World.Instance.Player.Z;
-
-            // Ensure coordinates are in correct order
-            int minX = Math.Min(x1, x2);
-            int maxX = Math.Max(x1, x2);
-            int minY = Math.Min(y1, y2);
-            int maxY = Math.Max(y1, y2);
-
-            int width = maxX - minX + 1;
-            int height = maxY - minY + 1;
-            int totalTiles = width * height;
-
-            // Pre-allocate array for results
-            var results = new WalkabilityResult[totalTiles];
-            int index = 0;
-
-            sbyte checkZ = (sbyte)Math.Clamp(z, sbyte.MinValue, sbyte.MaxValue);
-
-            // Batch check all tiles using the same Z level for consistency
-            for (int y = minY; y <= maxY; y++)
-            {
-                for (int x = minX; x <= maxX; x++)
-                {
-                    // Always calculate in real-time from the specified Z level
-                    // This ensures consistency with IsTileWalkable
-                    bool isWalkable = CheckTileWalkability(x, y, checkZ);
-                    results[index++] = new WalkabilityResult(x, y, isWalkable);
-                }
-            }
-
-            return results;
-        }
-
-        /// <summary>
-        /// Checks if a specific tile is walkable based on terrain, statics, items, and mobiles.
-        /// This method replicates the pathfinder's walkability logic without requiring actual pathfinding.
-        /// </summary>
-        /// <param name="x">X coordinate of the tile</param>
-        /// <param name="y">Y coordinate of the tile</param>
-        /// <param name="z">Z coordinate to check from</param>
-        /// <returns>True if the tile is walkable, false otherwise</returns>
         public bool CheckTileWalkability(int x, int y, sbyte z)
         {
             if (World.Instance?.Map == null || World.Instance.Player == null)
@@ -514,35 +437,8 @@ namespace ClassicUO.Game.Managers
                         break;
 
                     case Static stat:
-                        ref StaticTiles staticData = ref stat.ItemData;
-
-                        if (staticData.IsImpassable || staticData.IsWall)
-                        {
-                            int staticZ = stat.Z;
-                            int staticTop = staticZ + staticData.Height;
-
-                            // Check if static blocks at this Z level
-                            // We need to check if the static is within step height range
-                            if (staticZ <= z + Constants.DEFAULT_BLOCK_HEIGHT && staticTop > z) 
-                                return false; // Blocked by static
-                        }
-                        else if (staticData.IsSurface || staticData.IsBridge)
-                        {
-                            int staticZ = stat.Z;
-                            int surfaceHeight = staticData.Height;
-
-                            if (staticData.IsBridge)
-                                surfaceHeight /= 2;
-
-                            int staticSurfaceZ = staticZ + surfaceHeight;
-
-                            if (Math.Abs(staticSurfaceZ - z) <= Constants.DEFAULT_BLOCK_HEIGHT)
-                            {
-                                hasWalkableSurface = true;
-                                if (staticSurfaceZ > surfaceZ)
-                                    surfaceZ = staticSurfaceZ;
-                            }
-                        }
+                        if (stat.ItemData.IsImpassable) return false;
+                        if (stat.ItemData.IsWall) return false;
                         break;
 
                     case Item item:

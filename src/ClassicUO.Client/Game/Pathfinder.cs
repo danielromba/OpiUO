@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
-using ClassicUO.Assets;
-using ClassicUO.Configuration;
-using ClassicUO.Game.Data;
-using ClassicUO.Game.GameObjects;
-using ClassicUO.Game.Managers;
-using ClassicUO.Utility;
-using ClassicUO.Utility.Logging;
-using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection.Metadata;
-using static ClassicUO.LegionScripting.LegionAPI;
+using ClassicUO.Configuration;
+using ClassicUO.Game.Data;
+using ClassicUO.Game.GameObjects;
+using ClassicUO.Game.Managers;
+using ClassicUO.Assets;
+using ClassicUO.Utility;
+using ClassicUO.Utility.Logging;
+using Microsoft.Xna.Framework;
 using MathHelper = ClassicUO.Utility.MathHelper;
 
 namespace ClassicUO.Game
@@ -27,7 +26,6 @@ namespace ClassicUO.Game
         private static readonly List<PathNode> _path = new();
         private static int _pointIndex;
         private static bool _run;
-        private static WalkStyle _walkStyle;
         private static readonly int[] _offsetX =
         {
             0, 1, 1, 1, 0, -1, -1, -1, 0, 1
@@ -518,7 +516,7 @@ namespace ClassicUO.Game
                 null
             );
 
-            if (pathObj != null)
+            if(pathObj != null)
                 _reusableList.Add(pathObj);
 
             int resultZ = -128;
@@ -675,7 +673,7 @@ namespace ClassicUO.Game
             int newY = y;
             sbyte newZ = z;
             byte newDirection = (byte)direction;
-            if (!dontChangeXY) // if we dont want to change the xy, we can just use the current xy and direction
+            if(!dontChangeXY) // if we dont want to change the xy, we can just use the current xy and direction
                 GetNewXY((byte)direction, ref newX, ref newY);
             bool passed = CalculateNewZ(newX, newY, ref newZ, (byte)direction);
 
@@ -857,19 +855,6 @@ namespace ClassicUO.Game
             return null;
         }
 
-        private bool GetRunState(PathNode node = null, int dist = 14)
-        {
-            if (_walkStyle == WalkStyle.WalkOnly)
-                return false;
-            else if (_walkStyle == WalkStyle.RunOnly)
-                return true;
-
-            if (node != null && node.DistFromGoalCost > dist)
-                return true;
-
-            return false;
-        }
-
         private bool FindPath(int maxNodes, bool ignoreAutowalkState)
         {
             var startNode = PathNode.Get();
@@ -888,7 +873,10 @@ namespace ClassicUO.Game
 
             int closedNodesCount = 0;
 
-            _run = GetRunState(startNode, 14);
+            if (startNode.DistFromGoalCost > 14)
+            {
+                _run = true;
+            }
 
             while (ignoreAutowalkState || AutoWalking)
             {
@@ -958,7 +946,7 @@ namespace ClassicUO.Game
             }
         }
 
-        public List<(int X, int Y, int Z)> GetPathTo(int x, int y, int z, int distance, WalkStyle walkStyle = WalkStyle.Auto)
+        public List<(int X, int Y, int Z)> GetPathTo(int x, int y, int z, int distance)
         {
             _zLevelDiff = ProfileManager.CurrentProfile.PathfindingZLevelDiff;
 
@@ -971,7 +959,6 @@ namespace ClassicUO.Game
             _endPoint.X = x;
             _endPoint.Y = y;
             _endPointZ = z;
-            _walkStyle = walkStyle;
             _pathfindDistance = distance;
 
             if (!FindPath(PATHFINDER_MAX_NODES, ignoreAutowalkState: true))
@@ -989,7 +976,7 @@ namespace ClassicUO.Game
             return result;
         }
 
-        public bool WalkTo(int x, int y, int z, int distance, WalkStyle walkStyle = WalkStyle.Auto)
+        public bool WalkTo(int x, int y, int z, int distance)
         {
             if (_world.Player == null /*|| World.Player.Stamina == 0*/ || _world.Player.IsParalyzed)
             {
@@ -1010,7 +997,6 @@ namespace ClassicUO.Game
             _endPoint.Y = y;
             _endPointZ = z;
             _pathfindDistance = distance;
-            _walkStyle = walkStyle;
             AutoWalking = true;
 
             if (FindPath(PATHFINDER_MAX_NODES, ignoreAutowalkState: false))
@@ -1025,7 +1011,7 @@ namespace ClassicUO.Game
 
             bool status = _path.Count != 0;
 
-            if (UseLongDistancePathfinding && !status)
+            if(UseLongDistancePathfinding && !status)
                 if (LongDistancePathfinder.WalkLongDistance(x, y))
                     return true;
 
@@ -1109,7 +1095,7 @@ namespace ClassicUO.Game
         private class PathObject : IComparable<PathObject>
         {
             private static ObjectPool<PathObject> _pool = new ObjectPool<PathObject>(
-                () => new PathObject(0, 0, 0, 0, null), (po) =>
+                ()=> new PathObject(0, 0, 0, 0, null), (po) =>
                 {
                     po.Flags = 0;
                     po.Z = 0;
@@ -1167,8 +1153,8 @@ namespace ClassicUO.Game
         private class PathNode
         {
             private static ObjectPool<PathNode> _pool = new(
-                () => new PathNode(),
-                (pn) => { pn.Reset(); },
+                ()=>new PathNode(),
+                (pn) => {pn.Reset();},
                 15
                 );
 

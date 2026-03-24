@@ -9,9 +9,8 @@ using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Resources;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Collections;
-using info.lundin.math;
 using Microsoft.Xna.Framework;
-using System;
+using ClassicUO.Assets;
 
 namespace ClassicUO.Game.GameObjects
 {
@@ -425,8 +424,6 @@ namespace ClassicUO.Game.GameObjects
             _isAnimationForwardDirection = forward;
             AnimationFromServer = fromServer;
             LastAnimationChangeTime = Time.Ticks;
-
-            EventSink.InvokeOnMobileAnimation(null, new CharacterAnimationEventArgs(Serial, id, AnimIndex));
 
             CalculateRandomIdleTime();
         }

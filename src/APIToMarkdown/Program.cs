@@ -595,7 +595,6 @@ public static class GenDoc
             // This type sits outside the ApiClasses namespace - we either have to duplicate it
             // or update the type resolution logic.
             // "BuffIconType" => "BuffIconType",
-            "WalkStyle" => "WalkStyle",
             "ScanType" => "ScanType",
             "Notoriety" => "Notoriety",
             "GameObject" or "ApiGameObject" => "ApiGameObject",

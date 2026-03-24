@@ -119,9 +119,6 @@ internal static class Utility
     {
         Layer finalLayer = Layer.Invalid;
 
-        if (name != null)
-            name = name.ToLower();
-
         switch (name)
         {
             case "onehanded": finalLayer = Layer.OneHanded; break;

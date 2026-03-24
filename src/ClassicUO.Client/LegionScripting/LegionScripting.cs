@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -441,22 +441,21 @@ namespace ClassicUO.LegionScripting
 
         private static void ExecuteCSharpScript(ScriptFile script)
         {
-            ILegionScript scriptInstance = null;
             try
             {
                 script.SetupCSharpScript();
                 script.SetupCSharpGlobals();
 
-                // Instantiate the script class with LegionAPI and CancellationToken
-                scriptInstance = (ILegionScript)Activator.CreateInstance(
-                    script.CSharpScriptType,
-                    script.ScopedApi,
-                    script.ScopedApi.CancellationToken.Token);
+                // Execute with cancellation support
+                Task<ScriptState<object>> task = script.CSharpCompiledScript.RunAsync(
+                    new ScriptGlobals { GlobalApiInstance = script.ScopedApi },
+                    script.ScopedApi.CancellationToken.Token
+                );
 
-                // Execute the script's Execute method
-                scriptInstance.Execute();
+                // Block thread until the script completes or is canceled
+                task.Wait(script.ScopedApi.CancellationToken.Token);
             }
-            catch (CSharpCompilationException e)
+            catch (CompilationErrorException e)
             {
                 ShowCSharpCompilationError(script, e);
             }
@@ -473,13 +472,6 @@ namespace ClassicUO.LegionScripting
             catch (Exception e)
             {
                 ShowCSharpRuntimeError(script, e);
-            }
-            finally
-            {
-                try { scriptInstance?.Cleanup(); } catch (Exception e)
-                {
-                    Log.Error($"Error during script cleanup: {e}");
-                }
             }
 
             MainThreadQueue.EnqueueAction(() => { StopScript(script); });
@@ -565,7 +557,7 @@ namespace ClassicUO.LegionScripting
             return string.Join(Environment.NewLine, result);
         }
 
-        private static void ShowCSharpCompilationError(ScriptFile script, CSharpCompilationException e)
+        private static void ShowCSharpCompilationError(ScriptFile script, CompilationErrorException e)
         {
             GameActions.Print(_world, $"Legion Script '{script.FileName}' has compilation errors.", Constants.HUE_ERROR);
 
@@ -577,7 +569,8 @@ namespace ClassicUO.LegionScripting
                     continue;
 
                 FileLinePositionSpan lineSpan = diagnostic.Location.GetLineSpan();
-                int lineNumber = lineSpan.StartLinePosition.Line + 1; // Convert to 1-based
+                // Since we're injecting code into the script, we need to account for the actual user code's start line
+                int lineNumber = lineSpan.StartLinePosition.Line - script.UserCodeStartLine;
 
                 string lineContent = "";
                 if (script.FullPath.TryReadFileLines(out string[] fileLines))
@@ -631,7 +624,8 @@ namespace ClassicUO.LegionScripting
                 if (!fileName.Equals(script.FullPath, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                int lineNumber = frame.GetFileLineNumber();
+                // We have to account for the hidden injected code here, in terms of the actual line numbers
+                int lineNumber = frame.GetFileLineNumber() - script.UserCodeStartLine + 2;
                 if (lineNumber <= 0)
                     continue;
 
@@ -733,42 +727,18 @@ namespace ClassicUO.LegionScripting
         /// </summary>
         private static void CreateCSScriptingProjFiles()
         {
-            const string exampleScript = """
-                                   using System;
-                                   using System.Threading;
+            const string scriptContext = """
+                                   global using static ScriptContext;
+
                                    using ClassicUO.LegionScripting;
 
-                                   namespace ClassicUO.LegionScripting.Scripts;
-
                                    /// <summary>
-                                   /// Example C# script template.
-                                   /// All C# scripts must:
-                                   /// 1. Be in the ClassicUO.LegionScripting.Scripts namespace
-                                   /// 2. Implement the ILegionScript interface
-                                   /// 3. Provide a Name property and Execute method
+                                   /// Provides the global API instance for script IntelliSense.
+                                   /// At runtime, the actual API is injected by TazUO's scripting engine.
                                    /// </summary>
-                                   public class ExampleScript : ILegionScript
+                                   public static class ScriptContext
                                    {
-                                       public string Name => "Example Script";
-
-                                       public void Execute(LegionAPI api, CancellationToken cancellationToken)
-                                       {
-                                           // Your script code goes here
-                                           api.Print("Hello from C# script!");
-
-                                           // Check for cancellation periodically in loops
-                                           while (!cancellationToken.IsCancellationRequested)
-                                           {
-                                               api.Print("Script is running...");
-                                               api.Pause(1000);
-
-                                               // Example: Stop after 5 seconds
-                                               if (api.Timer() > 5000)
-                                                   break;
-                                           }
-
-                                           api.Print("Script finished!");
-                                       }
+                                       public static LegionAPI API { get; } = null!;
                                    }
                                    """;
             const string csProj = """
@@ -777,11 +747,6 @@ namespace ClassicUO.LegionScripting
                                     <!--
                                       This project provides IntelliSense for C# scripts.
                                       Build errors are EXPECTED and can be ignored - scripts run independently in TazUO.
-
-                                      Each script must:
-                                      1. Be in the ClassicUO.LegionScripting.Scripts namespace
-                                      2. Implement ILegionScript interface
-                                      3. Have a Name property and Execute method
                                     -->
 
                                     <PropertyGroup>
@@ -808,7 +773,7 @@ namespace ClassicUO.LegionScripting
 
                                     <!-- Include all scripts for IntelliSense (build errors are normal) -->
                                     <ItemGroup>
-                                      <Compile Include="**/*.cs" Exclude="_*.cs;*.template.cs"/>
+                                      <Compile Include="**/*.cs"/>
                                     </ItemGroup>
 
                                     <!-- Common imports for all scripts -->
@@ -816,10 +781,10 @@ namespace ClassicUO.LegionScripting
                                       <Using Include="System" />
                                       <Using Include="System.Linq" />
                                       <Using Include="System.Collections.Generic" />
-                                      <Using Include="System.Threading" />
                                       <Using Include="System.Threading.Tasks" />
                                       <Using Include="ClassicUO.LegionScripting" />
                                       <Using Include="ClassicUO.LegionScripting.ApiClasses" />
+                                      <Using Include="ScriptContext" Static="true" />
                                     </ItemGroup>
 
                                   </Project>
@@ -827,7 +792,7 @@ namespace ClassicUO.LegionScripting
 
             try
             {
-                File.WriteAllText(Path.Combine(CUOEnviroment.ExecutablePath, "LegionScripts", "ExampleScript.template.cs"), exampleScript);
+                File.WriteAllText(Path.Combine(CUOEnviroment.ExecutablePath, "LegionScripts", "_ScriptContext.cs"), scriptContext);
                 File.WriteAllText(Path.Combine(CUOEnviroment.ExecutablePath, "LegionScripts", "LegionScripts.csproj"), csProj);
             }
             catch (Exception ex)

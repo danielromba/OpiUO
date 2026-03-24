@@ -109,18 +109,36 @@
 
   <PropertyGroup>
     <!-- Windows: use RuntimeIdentifier if set, otherwise fall back -->
-    <_IsWindows Condition="&#xA;    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'true' AND&#xA;     '$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true')&#xA;    OR&#xA;    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'false' AND&#xA;     $(RuntimeIdentifier.StartsWith('win')) )&#xA;  ">true</_IsWindows>
+    <_IsWindows Condition="
+    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'true' AND
+     '$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true')
+    OR
+    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'false' AND
+     $(RuntimeIdentifier.StartsWith('win')) )
+  ">true</_IsWindows>
 
     <!-- MacOS -->
-    <_IsMacOS Condition="&#xA;    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'true' AND&#xA;     '$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true')&#xA;    OR&#xA;    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'false' AND&#xA;     $(RuntimeIdentifier.StartsWith('osx')) )&#xA;  ">true</_IsMacOS>
+    <_IsMacOS Condition="
+    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'true' AND
+     '$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true')
+    OR
+    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'false' AND
+     $(RuntimeIdentifier.StartsWith('osx')) )
+  ">true</_IsMacOS>
 
     <!-- Linux -->
-    <_IsLinux Condition="&#xA;    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'true' AND&#xA;     '$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true')&#xA;    OR&#xA;    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'false' AND&#xA;     $(RuntimeIdentifier.StartsWith('linux')) )&#xA;  ">true</_IsLinux>
+    <_IsLinux Condition="
+    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'true' AND
+     '$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true')
+    OR
+    ('$([System.String]::IsNullOrEmpty($(RuntimeIdentifier)))' == 'false' AND
+     $(RuntimeIdentifier.StartsWith('linux')) )
+  ">true</_IsLinux>
   </PropertyGroup>
 
   <Target Name="IncludeGeneratedFiles" BeforeTargets="BeforeBuild">
     <ItemGroup>
-      <None Include="$(BaseIntermediateOutputPath)/generated/EventGenerator/**/*.Api.Decl.g.cs" CopyToOutputDirectory="PreserveNewest" />
+      <None Include="$(BaseIntermediateOutputPath)/generated/EventGenerator/**/*.Api.Decl.g.cs" CopyToOutputDirectory="PreserveNewest"/>
     </ItemGroup>
   </Target>
 
@@ -130,10 +148,6 @@
     <DocSourceFiles Include="$(BaseIntermediateOutputPath)/generated/EventGenerator/**/*.Api.Decl.g.cs" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Examples\" />
-  </ItemGroup>
-
   <PropertyGroup>
     <!-- Create a string of quoted paths -->
     <DocFileArgs>@(DocSourceFiles->'"%(FullPath)"', ' ')</DocFileArgs>
@@ -141,7 +155,7 @@
 
   <Target Name="GenerateDocs" AfterTargets="Build">
     <Message Text="Running: dotnet run --project ../APIToMarkdown/APIToMarkdown.csproj $(DocFileArgs)" />
-    <Exec Command="dotnet run --project ../APIToMarkdown/APIToMarkdown.csproj &quot;$(ProjectDir)/LegionScripting/docs&quot; $(DocFileArgs)" />
+    <Exec Command='dotnet run --project ../APIToMarkdown/APIToMarkdown.csproj "$(ProjectDir)/LegionScripting/docs" $(DocFileArgs)' />
   </Target>
 
   <Target Name="CreateVersionFile" AfterTargets="Build">

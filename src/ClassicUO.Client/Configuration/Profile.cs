@@ -351,10 +351,6 @@ namespace ClassicUO.Configuration
         public string WorldMapHiddenZoneFiles { get; set; } = string.Empty;
         public bool WorldMapShowGridIfZoomed { get; set; } = true;
         public bool WorldMapAllowPositionalTarget { get; set; } = true;
-        public bool WorldMapShowOpilandPlayers { get; set; } = true;
-        public bool WorldMapShowOpilandPlayerNames { get; set; } = true;
-        public bool WorldMapShowOpilandPlayerBars { get; set; } = true;
-        public bool ShowOpilandTileHighlights { get; set; } = true;
 
         [JsonIgnore]
         public int WebMapServerPort
